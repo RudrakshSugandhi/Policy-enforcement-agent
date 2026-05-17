@@ -1,0 +1,64 @@
+{
+  "emp-001": [
+    {
+      "event_id": "cal-001",
+      "title": "QBR — Meru Corp",
+      "start": "2026-05-10T14:00:00Z",
+      "end": "2026-05-10T17:00:00Z",
+      "attendees": ["alice.chen@meru-inc.com", "john.doe@merucorp.com", "jane.smith@merucorp.com"],
+      "is_client_meeting": true
+    }
+  ],
+  "emp-002": [
+    {
+      "event_id": "cal-002",
+      "title": "Engineering all-hands",
+      "start": "2026-05-13T10:00:00Z",
+      "end": "2026-05-13T11:00:00Z",
+      "attendees": ["ben.williams@meru-inc.com", "sarah.kim@meru-inc.com"],
+      "is_client_meeting": false
+    }
+  ],
+  "emp-003": [
+    {
+      "event_id": "cal-003",
+      "title": "Client dinner — Globex partnership",
+      "start": "2026-05-14T19:00:00Z",
+      "end": "2026-05-14T21:30:00Z",
+      "attendees": [
+        "leila.nasser@meru-inc.com",
+        "alice.chen@meru-inc.com",
+        "sam.lee@globex.com"
+      ],
+      "is_client_meeting": true
+    },
+    {
+      "event_id": "cal-004",
+      "title": "Marketing sync",
+      "start": "2026-05-11T09:00:00Z",
+      "end": "2026-05-11T09:30:00Z",
+      "attendees": ["leila.nasser@meru-inc.com", "alice.chen@meru-inc.com"],
+      "is_client_meeting": false
+    }
+  ],
+  "emp-004": [
+    {
+      "event_id": "cal-005",
+      "title": "Annual sales kick-off",
+      "start": "2026-05-12T09:00:00Z",
+      "end": "2026-05-13T17:00:00Z",
+      "attendees": ["tom.hargreaves@meru-inc.com", "alice.chen@meru-inc.com"],
+      "is_client_meeting": false
+    }
+  ],
+  "emp-005": [
+    {
+      "event_id": "cal-006",
+      "title": "1:1 with Ben Williams",
+      "start": "2026-05-12T11:00:00Z",
+      "end": "2026-05-12T11:30:00Z",
+      "attendees": ["sarah.kim@meru-inc.com", "ben.williams@meru-inc.com"],
+      "is_client_meeting": false
+    }
+  ]
+}

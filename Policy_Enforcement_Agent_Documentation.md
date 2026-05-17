@@ -190,6 +190,73 @@ Structured rules always run before the LLM.
 
 ---
 
+## 13. Data Schemas (`backend/app/schemas.py`)
+
+All data contracts are defined as Pydantic v2 models. Every field is typed and validated at the boundary.
+
+| Model | What it represents |
+|---|---|
+| `Transaction` | A single card spend event submitted for evaluation |
+| `Employee` | Staff member who initiated the transaction |
+| `Vendor` | Known merchant in the tenant's vendor master, with blocklist flag |
+| `Receipt` / `ReceiptLineItem` | OCR'd receipt and its itemised lines attached as evidence |
+| `CompiledRule` | One machine-executable rule extracted from natural language policy |
+| `NaturalLanguageReference` | Policy clause kept as text for LLM judgment on ambiguous cases |
+| `UnsupportedClause` | Clause the compiler could not convert to a structured rule |
+| `CompiledPolicy` | A versioned, approved policy with structured rules and NL references |
+| `Decision` | Final agent output: verdict, action, rule path, confidence, rationale |
+| `AuditEntry` | Immutable record of one pipeline step with inputs and outputs |
+
+**Enums**
+
+- `PredicateType` — the kind of check a rule performs (e.g. `amount_cap`, `vendor_blocklist`, `per_diem_cap`).
+- `ActionType` — what the agent does on a result (e.g. `block`, `flag`, `escalate`, `propose_clawback`).
+- `PolicyStatus` — lifecycle of a compiled policy (`draft → approved → active → deprecated`).
+- `Verdict` — outcome of evaluating a transaction (`pass_through`, `fail`, `needs_evidence`, `needs_judgment`, `abstain`).
+
+---
+
+## 14. Mock Data (`mcp_server/data/`)
+
+Tenant: **Meru Inc** (`meru-inc`). All files are JSON and served by the MCP server. In production these are replaced by live Reap API calls.
+
+### Employees — 5 records
+| ID | Name | Dept | Country | Level |
+|---|---|---|---|---|
+| emp-001 | Alice Chen | Sales | US | Manager |
+| emp-002 | Ben Williams | Engineering | GB | IC3 |
+| emp-003 | Leila Nasser | Marketing | SG | IC2 |
+| emp-004 | Tom Hargreaves | Sales | GB | IC4 |
+| emp-005 | Sarah Kim | Engineering | US | Director |
+
+### Vendors — 15 records (2 blocklisted)
+13 allowed vendors across Hotels, Transport, Travel, Software, and Restaurants. Blocklisted: **Competitor Corp** and **RivalCo**. Hotel vendors carry a `star_rating` field used by the hotel star rule.
+
+### Transactions — 10 records
+| ID | Employee | Amount | Scenario |
+|---|---|---|---|
+| txn-001 | emp-001 | $220 USD | Compliant hotel — 4-star, under NYC cap, receipt attached |
+| txn-002 | emp-002 | $299 USD | Compliant SaaS — under $500 pre-approval threshold |
+| txn-003 | emp-003 | SGD 42 | Compliant transport — under receipt threshold |
+| txn-004 | emp-004 | $580 USD | Compliant flight — receipt attached |
+| txn-005 | emp-005 | $68 USD | Compliant solo lunch — receipt attached |
+| txn-006 | emp-001 | $180 USD | **Fail** — over $75 receipt threshold, no receipt |
+| txn-007 | emp-002 | $500 USD | **Fail** — Competitor Corp is blocklisted |
+| txn-008 | emp-003 | $320 USD | **Ambiguous** — solo overspend or compliant client dinner for 3? |
+| txn-009 | emp-004 | $450 USD | **Fail** — 5-star hotel, exceeds star limit and $250 NYC cap |
+| txn-010 | emp-005 | $1200 USD | **Fail** — SaaS above $500/month, no pre-approval on record |
+
+### Receipts — 3 records
+Attached to txn-001 (hotel), txn-004 (flight), txn-005 (lunch). txn-006 through txn-010 are intentionally missing receipts where noted.
+
+### Calendar — keyed by employee_id
+Used to resolve the ambiguous txn-008: emp-003 has a confirmed client dinner event (`is_client_meeting: true`) on 2026-05-14 19:00 overlapping the transaction, which the judgment agent can use as supporting evidence.
+
+### Policy — `policies/Meru_v1.txt`
+8 natural-language clauses covering: receipt threshold ($75), hotel star limit and nightly caps (NYC/London $250, Singapore SGD 200), client dinner reimbursement ($150/person), alcohol rule, SaaS pre-approval ($500/month), vendor blocklist, team entertainment, and quarterly board reporting.
+
+---
+
 ## Production-Ready End Note
 
 - **MVP runs locally**: Next.js frontend, FastAPI backend, MCP server, and Ollama serving Qwen 2.5 7B.

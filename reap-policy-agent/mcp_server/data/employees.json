@@ -1,0 +1,47 @@
+[
+  {
+    "employee_id": "emp-001",
+    "tenant_id": "meru-inc",
+    "name": "Alice Chen",
+    "department": "Sales",
+    "manager_id": null,
+    "country": "US",
+    "role_level": "Manager"
+  },
+  {
+    "employee_id": "emp-002",
+    "tenant_id": "meru-inc",
+    "name": "Ben Williams",
+    "department": "Engineering",
+    "manager_id": "emp-005",
+    "country": "GB",
+    "role_level": "IC3"
+  },
+  {
+    "employee_id": "emp-003",
+    "tenant_id": "meru-inc",
+    "name": "Leila Nasser",
+    "department": "Marketing",
+    "manager_id": "emp-001",
+    "country": "SG",
+    "role_level": "IC2"
+  },
+  {
+    "employee_id": "emp-004",
+    "tenant_id": "meru-inc",
+    "name": "Tom Hargreaves",
+    "department": "Sales",
+    "manager_id": "emp-001",
+    "country": "GB",
+    "role_level": "IC4"
+  },
+  {
+    "employee_id": "emp-005",
+    "tenant_id": "meru-inc",
+    "name": "Sarah Kim",
+    "department": "Engineering",
+    "manager_id": null,
+    "country": "US",
+    "role_level": "Director"
+  }
+]

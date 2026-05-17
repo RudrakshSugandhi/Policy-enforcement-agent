@@ -1,0 +1,40 @@
+[
+  {
+    "receipt_id": "b1c2d3e4-0001-0001-0001-000000000001",
+    "transaction_id": "a1b2c3d4-0001-0001-0001-000000000001",
+    "total_amount": "220.00",
+    "currency": "USD",
+    "line_items": [
+      { "name": "Room rate — 1 night", "amount": "200.00", "category": "Accommodation" },
+      { "name": "City tax", "amount": "20.00", "category": "Tax" }
+    ],
+    "attendees": null,
+    "business_purpose": "NYC client visit — QBR with Meru Corp"
+  },
+  {
+    "receipt_id": "b1c2d3e4-0004-0004-0004-000000000004",
+    "transaction_id": "a1b2c3d4-0004-0004-0004-000000000004",
+    "total_amount": "580.00",
+    "currency": "USD",
+    "line_items": [
+      { "name": "LHR-JFK economy fare", "amount": "540.00", "category": "Airfare" },
+      { "name": "Seat selection", "amount": "40.00", "category": "Airfare" }
+    ],
+    "attendees": null,
+    "business_purpose": "Travel to New York for annual sales kick-off"
+  },
+  {
+    "receipt_id": "b1c2d3e4-0005-0005-0005-000000000005",
+    "transaction_id": "a1b2c3d4-0005-0005-0005-000000000005",
+    "total_amount": "68.00",
+    "currency": "USD",
+    "line_items": [
+      { "name": "Grilled salmon", "amount": "42.00", "category": "Food" },
+      { "name": "Sparkling water", "amount": "8.00", "category": "Beverage" },
+      { "name": "Coffee", "amount": "6.00", "category": "Beverage" },
+      { "name": "Service charge", "amount": "12.00", "category": "Service" }
+    ],
+    "attendees": null,
+    "business_purpose": "Working lunch — solo"
+  }
+]

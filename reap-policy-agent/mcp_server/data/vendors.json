@@ -1,0 +1,126 @@
+[
+  {
+    "vendor_id": "vnd-001",
+    "tenant_id": "meru-inc",
+    "name": "Marriott Hotels",
+    "category": "Hotels",
+    "country": "US",
+    "on_blocklist": false,
+    "star_rating": 4
+  },
+  {
+    "vendor_id": "vnd-002",
+    "tenant_id": "meru-inc",
+    "name": "Hilton Hotels",
+    "category": "Hotels",
+    "country": "GB",
+    "on_blocklist": false,
+    "star_rating": 4
+  },
+  {
+    "vendor_id": "vnd-003",
+    "tenant_id": "meru-inc",
+    "name": "Mandarin Oriental",
+    "category": "Hotels",
+    "country": "SG",
+    "on_blocklist": false,
+    "star_rating": 5
+  },
+  {
+    "vendor_id": "vnd-004",
+    "tenant_id": "meru-inc",
+    "name": "Four Seasons New York",
+    "category": "Hotels",
+    "country": "US",
+    "on_blocklist": false,
+    "star_rating": 5
+  },
+  {
+    "vendor_id": "vnd-005",
+    "tenant_id": "meru-inc",
+    "name": "Uber",
+    "category": "Transport",
+    "country": "US",
+    "on_blocklist": false
+  },
+  {
+    "vendor_id": "vnd-006",
+    "tenant_id": "meru-inc",
+    "name": "Grab",
+    "category": "Transport",
+    "country": "SG",
+    "on_blocklist": false
+  },
+  {
+    "vendor_id": "vnd-007",
+    "tenant_id": "meru-inc",
+    "name": "Delta Airlines",
+    "category": "Travel",
+    "country": "US",
+    "on_blocklist": false
+  },
+  {
+    "vendor_id": "vnd-008",
+    "tenant_id": "meru-inc",
+    "name": "British Airways",
+    "category": "Travel",
+    "country": "GB",
+    "on_blocklist": false
+  },
+  {
+    "vendor_id": "vnd-009",
+    "tenant_id": "meru-inc",
+    "name": "Zoom",
+    "category": "Software",
+    "country": "US",
+    "on_blocklist": false
+  },
+  {
+    "vendor_id": "vnd-010",
+    "tenant_id": "meru-inc",
+    "name": "Slack",
+    "category": "Software",
+    "country": "US",
+    "on_blocklist": false
+  },
+  {
+    "vendor_id": "vnd-011",
+    "tenant_id": "meru-inc",
+    "name": "Salesforce",
+    "category": "Software",
+    "country": "US",
+    "on_blocklist": false
+  },
+  {
+    "vendor_id": "vnd-012",
+    "tenant_id": "meru-inc",
+    "name": "The Capital Grille",
+    "category": "Restaurants",
+    "country": "US",
+    "on_blocklist": false
+  },
+  {
+    "vendor_id": "vnd-013",
+    "tenant_id": "meru-inc",
+    "name": "Nobu London",
+    "category": "Restaurants",
+    "country": "GB",
+    "on_blocklist": false
+  },
+  {
+    "vendor_id": "vnd-014",
+    "tenant_id": "meru-inc",
+    "name": "Competitor Corp",
+    "category": "Consulting",
+    "country": "US",
+    "on_blocklist": true
+  },
+  {
+    "vendor_id": "vnd-015",
+    "tenant_id": "meru-inc",
+    "name": "RivalCo",
+    "category": "Software",
+    "country": "US",
+    "on_blocklist": true
+  }
+]
