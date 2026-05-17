@@ -1,0 +1,88 @@
+{
+  "policy_id": "dddddddd-0000-0000-0000-000000000001",
+  "tenant_id": "meru-inc",
+  "version": 5,
+  "status": "active",
+  "structured_rules": [
+    {
+      "rule_id": "rule-001",
+      "predicate": "amount_requires_receipt",
+      "parameters": {
+        "threshold": 75,
+        "currency": "USD"
+      },
+      "applies_when": null,
+      "evidence_required": [
+        "receipt"
+      ],
+      "action_on_violation": "request_evidence",
+      "source_clause": "Receipts are required for any expense over 75 USD."
+    },
+    {
+      "rule_id": "rule-002",
+      "predicate": "hotel_star_max",
+      "parameters": {
+        "max_stars": 4
+      },
+      "applies_when": null,
+      "evidence_required": [],
+      "action_on_violation": "flag",
+      "source_clause": "Hotels must be four stars or below."
+    },
+    {
+      "rule_id": "rule-003",
+      "predicate": "vendor_blocklist",
+      "parameters": {
+        "vendors": [
+          "Competitor Corp",
+          "RivalCo"
+        ]
+      },
+      "applies_when": null,
+      "evidence_required": [],
+      "action_on_violation": "block",
+      "source_clause": "Purchases from Competitor Corp and RivalCo are not permitted."
+    },
+    {
+      "rule_id": "rule-004",
+      "predicate": "category_pre_approval",
+      "parameters": {
+        "categories": [
+          "SaaS subscriptions"
+        ],
+        "approval_from": "department head"
+      },
+      "applies_when": "amount > 500 USD per month",
+      "evidence_required": [
+        "manager_approval"
+      ],
+      "action_on_violation": "escalate",
+      "source_clause": "SaaS subscriptions above 500 USD per month require pre-approval from the department head before purchase."
+    }
+  ],
+  "natural_language_references": [
+    {
+      "ref_id": "ref-001",
+      "clause_text": "Alcohol is reimbursable only when clients are present and must not exceed 20% of the total bill.",
+      "applies_to_transaction_types": [
+        "meal",
+        "entertainment"
+      ],
+      "keywords": [
+        "alcohol",
+        "clients present",
+        "client dinner",
+        "20%"
+      ]
+    }
+  ],
+  "unsupported_clauses": [
+    {
+      "clause_text": "Quarterly expense reports must be submitted to the board.",
+      "reason": "Governance obligation — not a transaction-level rule."
+    }
+  ],
+  "created_at": "2026-05-17T17:37:31.939718Z",
+  "approved_by": "demo-script",
+  "approved_at": "2026-05-17T17:37:31.944345Z"
+}
