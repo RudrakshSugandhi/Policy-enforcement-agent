@@ -1,0 +1,138 @@
+<svg width="100%" viewBox="0 0 680 920" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>High level workflow showing hybrid policy model and transaction evaluation</title>
+<desc>Top: customer uploads policy, LLM compiler splits it into structured rules and natural language reference, human approves, becomes active. Bottom: transaction arrives, rule engine uses structured rules first, LLM judgment uses natural language reference only for ambiguous cases, dispatcher acts, audit log records.</desc>
+<defs>
+<style>
+.t { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 14px; fill: #2C2C2A; }
+.ts { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12px; fill: #5F5E5A; }
+.th { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 14px; font-weight: 500; fill: #2C2C2A; }
+.arr { stroke: #888780; stroke-width: 1.5; fill: none; }
+.c-gray rect, .c-gray polygon { fill: #F1EFE8; stroke: #5F5E5A; }
+.c-purple rect, .c-purple polygon { fill: #EEEDFE; stroke: #534AB7; }
+.c-teal rect, .c-teal polygon { fill: #E1F5EE; stroke: #0F6E56; }
+.c-coral rect, .c-coral polygon { fill: #FAECE7; stroke: #993C1D; }
+.c-amber rect, .c-amber polygon { fill: #FAEEDA; stroke: #854F0B; }
+.c-gray .th, .c-gray .t { fill: #2C2C2A; }
+.c-purple .th, .c-purple .t { fill: #3C3489; }
+.c-teal .th, .c-teal .t { fill: #085041; }
+.c-coral .th, .c-coral .t { fill: #712B13; }
+.c-amber .th, .c-amber .t { fill: #633806; }
+.c-purple .ts { fill: #534AB7; }
+.c-teal .ts { fill: #0F6E56; }
+.c-coral .ts { fill: #993C1D; }
+.c-amber .ts { fill: #854F0B; }
+</style>
+<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker>
+</defs>
+<rect width="680" height="920" fill="#FFFFFF"/>
+
+<text class="th" x="40" y="30">Step 1: Policy onboarding</text>
+<text class="ts" x="40" y="48">Runs once per policy upload, builds the hybrid model</text>
+
+<g class="c-gray"><rect x="40" y="75" width="130" height="60" rx="8" stroke-width="0.5"/>
+<text class="th" x="105" y="98" text-anchor="middle" dominant-baseline="central">Upload policy</text>
+<text class="ts" x="105" y="116" text-anchor="middle" dominant-baseline="central">Plain English doc</text></g>
+
+<line x1="170" y1="105" x2="198" y2="105" class="arr" marker-end="url(#arrow)"/>
+
+<g class="c-purple"><rect x="200" y="75" width="150" height="60" rx="8" stroke-width="0.5"/>
+<text class="th" x="275" y="98" text-anchor="middle" dominant-baseline="central">LLM compiler</text>
+<text class="ts" x="275" y="116" text-anchor="middle" dominant-baseline="central">Splits into two layers</text></g>
+
+<line x1="350" y1="92" x2="378" y2="80" class="arr" marker-end="url(#arrow)"/>
+<line x1="350" y1="118" x2="378" y2="130" class="arr" marker-end="url(#arrow)"/>
+
+<g class="c-teal"><rect x="380" y="50" width="180" height="50" rx="8" stroke-width="0.5"/>
+<text class="th" x="470" y="68" text-anchor="middle" dominant-baseline="central">Structured rules</text>
+<text class="ts" x="470" y="86" text-anchor="middle" dominant-baseline="central">JSON, deterministic</text></g>
+
+<g class="c-coral"><rect x="380" y="110" width="180" height="50" rx="8" stroke-width="0.5"/>
+<text class="th" x="470" y="128" text-anchor="middle" dominant-baseline="central">Natural language ref</text>
+<text class="ts" x="470" y="146" text-anchor="middle" dominant-baseline="central">For fuzzy cases</text></g>
+
+<line x1="560" y1="75" x2="588" y2="100" class="arr" marker-end="url(#arrow)"/>
+<line x1="560" y1="135" x2="588" y2="115" class="arr" marker-end="url(#arrow)"/>
+
+<g class="c-amber"><rect x="590" y="80" width="80" height="50" rx="8" stroke-width="0.5"/>
+<text class="th" x="630" y="98" text-anchor="middle" dominant-baseline="central">Human</text>
+<text class="ts" x="630" y="116" text-anchor="middle" dominant-baseline="central">Approves</text></g>
+
+<g class="c-gray"><rect x="40" y="170" width="630" height="40" rx="8" stroke-width="0.5"/>
+<text class="th" x="355" y="186" text-anchor="middle" dominant-baseline="central">Active policy</text>
+<text class="ts" x="355" y="202" text-anchor="middle" dominant-baseline="central">Versioned, both layers live together</text></g>
+
+<path d="M630 130 L630 170" class="arr" fill="none" marker-end="url(#arrow)"/>
+
+<line x1="40" y1="240" x2="640" y2="240" stroke="#D3D1C7" stroke-width="0.5"/>
+
+<text class="th" x="40" y="265">Step 2: Transaction evaluation</text>
+<text class="ts" x="40" y="283">Runs for every transaction, structured rules first</text>
+
+<g class="c-gray"><rect x="260" y="305" width="160" height="50" rx="8" stroke-width="0.5"/>
+<text class="th" x="340" y="325" text-anchor="middle" dominant-baseline="central">Transaction arrives</text>
+<text class="ts" x="340" y="341" text-anchor="middle" dominant-baseline="central">Card swipe or bill</text></g>
+
+<line x1="340" y1="355" x2="340" y2="383" class="arr" marker-end="url(#arrow)"/>
+
+<g class="c-purple"><rect x="220" y="385" width="240" height="56" rx="8" stroke-width="0.5"/>
+<text class="th" x="340" y="407" text-anchor="middle" dominant-baseline="central">Load context</text>
+<text class="ts" x="340" y="425" text-anchor="middle" dominant-baseline="central">Employee, vendor, receipt</text></g>
+
+<line x1="340" y1="441" x2="340" y2="469" class="arr" marker-end="url(#arrow)"/>
+
+<g class="c-teal"><rect x="220" y="471" width="240" height="56" rx="8" stroke-width="0.5"/>
+<text class="th" x="340" y="493" text-anchor="middle" dominant-baseline="central">Rule engine</text>
+<text class="ts" x="340" y="511" text-anchor="middle" dominant-baseline="central">Structured rules, deterministic</text></g>
+
+<path d="M40 190 L40 499 L218 499" class="arr" fill="none" stroke-dasharray="3 3" marker-end="url(#arrow)"/>
+<text class="ts" x="50" y="485">Reads structured</text>
+
+<line x1="340" y1="527" x2="340" y2="555" class="arr" marker-end="url(#arrow)"/>
+
+<g class="c-amber"><polygon points="340,555 480,595 340,635 200,595" stroke-width="0.5"/>
+<text class="th" x="340" y="591" text-anchor="middle" dominant-baseline="central">Verdict?</text>
+<text class="ts" x="340" y="609" text-anchor="middle" dominant-baseline="central">Clear or ambiguous</text></g>
+
+<text class="ts" x="100" y="591">Clear</text>
+<line x1="200" y1="595" x2="120" y2="595" class="arr" marker-end="url(#arrow)"/>
+
+<text class="ts" x="540" y="591">Ambiguous</text>
+<line x1="480" y1="595" x2="560" y2="595" class="arr" marker-end="url(#arrow)"/>
+
+<g class="c-teal"><rect x="40" y="630" width="160" height="56" rx="8" stroke-width="0.5"/>
+<text class="th" x="120" y="652" text-anchor="middle" dominant-baseline="central">Skip LLM</text>
+<text class="ts" x="120" y="670" text-anchor="middle" dominant-baseline="central">Pass or fail outright</text></g>
+
+<g class="c-coral"><rect x="480" y="630" width="160" height="56" rx="8" stroke-width="0.5"/>
+<text class="th" x="560" y="652" text-anchor="middle" dominant-baseline="central">LLM judgment</text>
+<text class="ts" x="560" y="670" text-anchor="middle" dominant-baseline="central">Reads NL reference</text></g>
+
+<path d="M670 190 L670 658 L642 658" class="arr" fill="none" stroke-dasharray="3 3" marker-end="url(#arrow)"/>
+
+<path d="M120 686 L120 720 L340 720" class="arr" fill="none" marker-end="url(#arrow)"/>
+<path d="M560 686 L560 720 L340 720" class="arr" fill="none" marker-end="url(#arrow)"/>
+
+<g class="c-purple"><rect x="220" y="730" width="240" height="56" rx="8" stroke-width="0.5"/>
+<text class="th" x="340" y="752" text-anchor="middle" dominant-baseline="central">Action dispatcher</text>
+<text class="ts" x="340" y="770" text-anchor="middle" dominant-baseline="central">Reversible or human approval</text></g>
+
+<line x1="340" y1="786" x2="340" y2="814" class="arr" marker-end="url(#arrow)"/>
+
+<g class="c-teal"><rect x="40" y="816" width="180" height="56" rx="8" stroke-width="0.5"/>
+<text class="th" x="130" y="838" text-anchor="middle" dominant-baseline="central">Reversible action</text>
+<text class="ts" x="130" y="856" text-anchor="middle" dominant-baseline="central">Request, flag, notify</text></g>
+
+<g class="c-coral"><rect x="240" y="816" width="200" height="56" rx="8" stroke-width="0.5"/>
+<text class="th" x="340" y="838" text-anchor="middle" dominant-baseline="central">High stakes proposal</text>
+<text class="ts" x="340" y="856" text-anchor="middle" dominant-baseline="central">Block, freeze, clawback</text></g>
+
+<g class="c-amber"><rect x="460" y="816" width="180" height="56" rx="8" stroke-width="0.5"/>
+<text class="th" x="550" y="838" text-anchor="middle" dominant-baseline="central">Abstain</text>
+<text class="ts" x="550" y="856" text-anchor="middle" dominant-baseline="central">Queue for human</text></g>
+
+<path d="M340 786 L130 786 L130 816" class="arr" fill="none" marker-end="url(#arrow)"/>
+<path d="M340 786 L550 786 L550 816" class="arr" fill="none" marker-end="url(#arrow)"/>
+
+<g class="c-gray"><rect x="180" y="888" width="320" height="24" rx="8" stroke-width="0.5"/>
+<text class="ts" x="340" y="902" text-anchor="middle" dominant-baseline="central">Audit log records every step</text></g>
+</svg>
