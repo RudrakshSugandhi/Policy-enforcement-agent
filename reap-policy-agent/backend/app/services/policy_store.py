@@ -64,13 +64,18 @@ def _find_by_id(policy_id: str) -> CompiledPolicy | None:
 # Public API
 # ---------------------------------------------------------------------------
 
-def save_draft(compiled_policy: CompiledPolicy) -> str:
+def get_by_id(policy_id: str) -> CompiledPolicy | None:
+    """Return any policy (any status) by its ID, or None if not found."""
+    return _find_by_id(policy_id)
+
+
+def save_draft(compiled_policy: CompiledPolicy) -> CompiledPolicy:
     """Persist a compiled policy as a draft.
 
     Auto-assigns the next version number for the tenant (max existing + 1).
     Always forces status to draft regardless of what the caller set.
 
-    Returns the policy_id as a string.
+    Returns the saved CompiledPolicy with the assigned version.
     """
     existing = _load_all(compiled_policy.tenant_id)
     next_version = max((p.version for p in existing), default=0) + 1
@@ -82,7 +87,7 @@ def save_draft(compiled_policy: CompiledPolicy) -> str:
         "approved_at": None,
     })
     _write(policy)
-    return str(policy.policy_id)
+    return policy
 
 
 def approve(policy_id: str, reviewer_id: str) -> CompiledPolicy:

@@ -33,13 +33,13 @@
     "employee_id": "emp-003",
     "amount": "42.00",
     "currency": "SGD",
-    "merchant_name": "Grab",
-    "mcc_code": "4121",
+    "merchant_name": "citizenM Singapore",
+    "mcc_code": "7011",
     "timestamp": "2026-05-11T08:30:00Z",
-    "vendor_id": "vnd-006",
+    "vendor_id": "vnd-018",
     "card_id": "card-003",
-    "description": "Airport transfer to client site",
-    "_scenario": "compliant — transport under receipt threshold, allowed vendor"
+    "description": "1-night hotel, Singapore tech conference",
+    "_scenario": "needs LLM judgment — citizenM carries no official star rating, rule engine cannot verify hotel_star_max compliance"
   },
   {
     "transaction_id": "a1b2c3d4-0004-0004-0004-000000000004",
@@ -103,13 +103,13 @@
     "employee_id": "emp-003",
     "amount": "320.00",
     "currency": "USD",
-    "merchant_name": "The Capital Grille",
-    "mcc_code": "5812",
+    "merchant_name": "The Hoxton London",
+    "mcc_code": "7011",
     "timestamp": "2026-05-14T19:30:00Z",
-    "vendor_id": "vnd-012",
+    "vendor_id": "vnd-017",
     "card_id": "card-003",
-    "description": "Dinner",
-    "_scenario": "ambiguous — $320 could be solo overspend or compliant client dinner for 3 people at $107/head"
+    "description": "2-night hotel stay, London client visit",
+    "_scenario": "needs LLM judgment — The Hoxton has no official star classification, receipt attached but star compliance unverifiable"
   },
   {
     "transaction_id": "a1b2c3d4-0009-0009-0009-000000000009",
@@ -214,12 +214,12 @@
     "employee_id": "emp-005",
     "amount": "70.00",
     "currency": "EUR",
-    "merchant_name": "Uber",
-    "mcc_code": "4121",
+    "merchant_name": "citizenM Amsterdam",
+    "mcc_code": "7011",
     "timestamp": "2026-05-11T09:30:00Z",
-    "vendor_id": "vnd-005",
+    "vendor_id": "vnd-018",
     "card_id": "card-005",
-    "description": "Airport transfer",
-    "_scenario": "adversarial — 70 EUR ≈ 76 USD, crosses $75 receipt threshold when converted"
+    "description": "1-night hotel, Amsterdam partner summit",
+    "_scenario": "needs LLM judgment — citizenM unstarred, receipt attached; 70 EUR ≈ 76 USD also crosses receipt threshold to test combined rule handling"
   }
 ]

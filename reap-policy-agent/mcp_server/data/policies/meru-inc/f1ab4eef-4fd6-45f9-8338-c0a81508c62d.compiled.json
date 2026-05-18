@@ -1,22 +1,20 @@
 {
-  "policy_id": "dddddddd-0000-0000-0000-000000000001",
+  "policy_id": "f1ab4eef-4fd6-45f9-8338-c0a81508c62d",
   "tenant_id": "meru-inc",
-  "version": 5,
+  "version": 8,
   "status": "deprecated",
   "structured_rules": [
     {
       "rule_id": "rule-001",
       "predicate": "amount_requires_receipt",
       "parameters": {
-        "threshold": 75,
+        "threshold": 90,
         "currency": "USD"
       },
       "applies_when": null,
-      "evidence_required": [
-        "receipt"
-      ],
+      "evidence_required": [],
       "action_on_violation": "request_evidence",
-      "source_clause": "Receipts are required for any expense over 75 USD."
+      "source_clause": "Receipts are required for any expense over 90 USD."
     },
     {
       "rule_id": "rule-002",
@@ -52,10 +50,8 @@
         ],
         "approval_from": "department head"
       },
-      "applies_when": "amount > 500 USD per month",
-      "evidence_required": [
-        "manager_approval"
-      ],
+      "applies_when": null,
+      "evidence_required": [],
       "action_on_violation": "escalate",
       "source_clause": "SaaS subscriptions above 500 USD per month require pre-approval from the department head before purchase."
     }
@@ -79,10 +75,10 @@
   "unsupported_clauses": [
     {
       "clause_text": "Quarterly expense reports must be submitted to the board.",
-      "reason": "Governance obligation — not a transaction-level rule."
+      "reason": "Board reporting is a governance obligation, not a transaction-level rule."
     }
   ],
-  "created_at": "2026-05-17T17:37:31.939718Z",
-  "approved_by": "demo-script",
-  "approved_at": "2026-05-17T17:37:31.944345Z"
+  "created_at": "2026-05-18T03:56:22.491611Z",
+  "approved_by": "reviewer",
+  "approved_at": "2026-05-18T04:06:13.017049Z"
 }

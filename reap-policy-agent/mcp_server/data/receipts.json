@@ -5,11 +5,19 @@
     "total_amount": "220.00",
     "currency": "USD",
     "line_items": [
-      { "name": "Room rate — 1 night", "amount": "200.00", "category": "Accommodation" },
-      { "name": "City tax", "amount": "20.00", "category": "Tax" }
+      {
+        "name": "Room rate \u2014 1 night",
+        "amount": "200.00",
+        "category": "Accommodation"
+      },
+      {
+        "name": "City tax",
+        "amount": "20.00",
+        "category": "Tax"
+      }
     ],
     "attendees": null,
-    "business_purpose": "NYC client visit — QBR with Meru Corp"
+    "business_purpose": "NYC client visit \u2014 QBR with Meru Corp"
   },
   {
     "receipt_id": "b1c2d3e4-0004-0004-0004-000000000004",
@@ -17,8 +25,16 @@
     "total_amount": "580.00",
     "currency": "USD",
     "line_items": [
-      { "name": "LHR-JFK economy fare", "amount": "540.00", "category": "Airfare" },
-      { "name": "Seat selection", "amount": "40.00", "category": "Airfare" }
+      {
+        "name": "LHR-JFK economy fare",
+        "amount": "540.00",
+        "category": "Airfare"
+      },
+      {
+        "name": "Seat selection",
+        "amount": "40.00",
+        "category": "Airfare"
+      }
     ],
     "attendees": null,
     "business_purpose": "Travel to New York for annual sales kick-off"
@@ -29,13 +45,29 @@
     "total_amount": "68.00",
     "currency": "USD",
     "line_items": [
-      { "name": "Grilled salmon", "amount": "42.00", "category": "Food" },
-      { "name": "Sparkling water", "amount": "8.00", "category": "Beverage" },
-      { "name": "Coffee", "amount": "6.00", "category": "Beverage" },
-      { "name": "Service charge", "amount": "12.00", "category": "Service" }
+      {
+        "name": "Grilled salmon",
+        "amount": "42.00",
+        "category": "Food"
+      },
+      {
+        "name": "Sparkling water",
+        "amount": "8.00",
+        "category": "Beverage"
+      },
+      {
+        "name": "Coffee",
+        "amount": "6.00",
+        "category": "Beverage"
+      },
+      {
+        "name": "Service charge",
+        "amount": "12.00",
+        "category": "Service"
+      }
     ],
     "attendees": null,
-    "business_purpose": "Working lunch — solo"
+    "business_purpose": "Working lunch \u2014 solo"
   },
   {
     "receipt_id": "b1c2d3e4-0014-0014-0014-000000000014",
@@ -43,11 +75,58 @@
     "total_amount": "95.00",
     "currency": "USD",
     "line_items": [
-      { "name": "Steak", "amount": "55.00", "category": "Food" },
-      { "name": "House wine (2 glasses)", "amount": "28.00", "category": "Alcohol" },
-      { "name": "Service charge", "amount": "12.00", "category": "Service" }
+      {
+        "name": "Steak",
+        "amount": "55.00",
+        "category": "Food"
+      },
+      {
+        "name": "House wine (2 glasses)",
+        "amount": "28.00",
+        "category": "Alcohol"
+      },
+      {
+        "name": "Service charge",
+        "amount": "12.00",
+        "category": "Service"
+      }
     ],
     "attendees": null,
     "business_purpose": "Client dinner"
+  },
+  {
+    "receipt_id": "65871ae5-18ae-4cbc-a730-a2cb30d81f23",
+    "transaction_id": "a1b2c3d4-0006-0006-0006-000000000006",
+    "total_amount": "180.00",
+    "currency": "USD",
+    "line_items": [],
+    "attendees": [
+      "Alice Smith",
+      "Bob Jones"
+    ],
+    "business_purpose": "Client dinner"
+  },
+  {
+    "receipt_id": "c2d3e4f5-0008-0008-0008-000000000008",
+    "transaction_id": "a1b2c3d4-0008-0008-0008-000000000008",
+    "total_amount": "320.00",
+    "currency": "USD",
+    "line_items": [
+      { "name": "Room rate — night 1", "amount": "160.00", "category": "Accommodation" },
+      { "name": "Room rate — night 2", "amount": "160.00", "category": "Accommodation" }
+    ],
+    "attendees": null,
+    "business_purpose": "Client visit London — 2-night stay"
+  },
+  {
+    "receipt_id": "d3e4f5a6-0016-0016-0016-000000000016",
+    "transaction_id": "a1b2c3d4-0016-0016-0016-000000000016",
+    "total_amount": "70.00",
+    "currency": "EUR",
+    "line_items": [
+      { "name": "Room rate — 1 night", "amount": "70.00", "category": "Accommodation" }
+    ],
+    "attendees": null,
+    "business_purpose": "Amsterdam partner summit — overnight"
   }
 ]

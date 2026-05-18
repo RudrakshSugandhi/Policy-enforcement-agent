@@ -131,5 +131,23 @@
     "country": "US",
     "on_blocklist": false,
     "_note": "Typo variant of blocked 'Competitor Corp' — not caught by exact match"
+  },
+  {
+    "vendor_id": "vnd-017",
+    "tenant_id": "meru-inc",
+    "name": "The Hoxton",
+    "category": "Hotels",
+    "country": "GB",
+    "on_blocklist": false,
+    "_note": "Boutique hotel with no official star classification — triggers LLM judgment path"
+  },
+  {
+    "vendor_id": "vnd-018",
+    "tenant_id": "meru-inc",
+    "name": "citizenM",
+    "category": "Hotels",
+    "country": "NL",
+    "on_blocklist": false,
+    "_note": "Budget design hotel chain — deliberately unstarred, triggers LLM judgment path"
   }
 ]

@@ -104,6 +104,11 @@ IMPORTANT RULES:
   sentence as natural_language — even if it also contains a numeric threshold. The unverifiable
   condition is what matters for classification. Do NOT use requires_attendee_note as a substitute
   for this — requires_attendee_note is only for evidence collection (listing attendee names).
+- NEVER DUPLICATE: If a clause is already in natural_language_references, do NOT also add it as
+  a structured rule. Each clause must appear in exactly one layer.
+- PERCENTAGE LIMITS: Do not use amount_cap for percentage-based limits (e.g. "not exceed 20% of
+  the bill"). Percentage limits require runtime calculation against another value and must go in
+  natural_language_references.
 - A clause about quarterly reports to the board, HR review, reporting deadlines, or governance obligations
   is unsupported at transaction level. Put it in unsupported_clauses.
 - Always copy the original clause text verbatim into source_clause (for CompiledRule) or

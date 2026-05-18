@@ -1,0 +1,13 @@
+{
+  "transaction_id": "00000000-0000-0000-0000-000000000099",
+  "tenant_id": "meru-inc",
+  "employee_id": "emp-001",
+  "amount": "65.00",
+  "currency": "USD",
+  "merchant_name": "The Hoxton",
+  "mcc_code": "7011",
+  "timestamp": "2026-05-18T14:30:00Z",
+  "vendor_id": "vnd-017",
+  "card_id": "card-sample",
+  "description": "1-night hotel stay, London"
+}

@@ -103,21 +103,11 @@ def _append_audit(decision: Decision) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Public API
+# Core evaluation (shared by ID path and direct path)
 # ---------------------------------------------------------------------------
 
-def evaluate(transaction_id: str) -> Decision:
-    """Evaluate a single transaction end-to-end and return a Decision.
-
-    Raises ValueError if the transaction cannot be found.
-    """
-    # 1. Load transaction
-    raw = get_transaction(transaction_id)
-    if "error" in raw:
-        raise ValueError(f"Transaction not found: {transaction_id}")
-    txn = Transaction.model_validate(raw)
-
-    # 2. Load context
+def _evaluate_core(txn: Transaction) -> Decision:
+    """Run the full evaluation pipeline for a given Transaction object."""
     policy = policy_store.get_active(txn.tenant_id)
 
     employee_raw = get_employee(txn.employee_id)
@@ -128,10 +118,9 @@ def evaluate(transaction_id: str) -> Decision:
         vendor_raw = get_vendor(txn.vendor_id)
         vendor = Vendor.model_validate(vendor_raw) if vendor_raw else None
 
-    receipt_raw = get_receipt(transaction_id)
+    receipt_raw = get_receipt(str(txn.transaction_id))
     receipt = Receipt.model_validate(receipt_raw) if receipt_raw else None
 
-    # 3. Handle missing policy — abstain
     if policy is None:
         decision = Decision(
             decision_id=uuid4(),
@@ -149,12 +138,9 @@ def evaluate(transaction_id: str) -> Decision:
         _append_audit(decision)
         return decision
 
-    # 4. Run rule engine
     verdict, rules_fired, missing_evidence = _rule_eval(txn, policy, receipt, vendor, employee)
 
-    # 5. Dispatch
     if verdict == Verdict.needs_judgment:
-        # Phase 11: LLM judgment agent handles context gathering + action dispatch internally
         from app.agents.judgment_agent import judge
         decision = judge(txn, policy, receipt, vendor, employee, rules_fired)
         _append_audit(decision)
@@ -162,7 +148,6 @@ def evaluate(transaction_id: str) -> Decision:
 
     _dispatch(verdict, rules_fired, missing_evidence, txn, policy, employee)
 
-    # 6. Build and persist Decision
     decision = Decision(
         decision_id=uuid4(),
         transaction_id=txn.transaction_id,
@@ -177,3 +162,28 @@ def evaluate(transaction_id: str) -> Decision:
     )
     _append_audit(decision)
     return decision
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+def evaluate(transaction_id: str) -> Decision:
+    """Evaluate a stored transaction by ID.
+
+    Raises ValueError if the transaction cannot be found.
+    """
+    raw = get_transaction(transaction_id)
+    if "error" in raw:
+        raise ValueError(f"Transaction not found: {transaction_id}")
+    txn = Transaction.model_validate(raw)
+    return _evaluate_core(txn)
+
+
+def evaluate_direct(txn: Transaction) -> Decision:
+    """Evaluate a Transaction object supplied directly (not from stored data).
+
+    Employee, vendor, and receipt are looked up from stored data using the
+    IDs present in the transaction. Missing lookups are handled gracefully.
+    """
+    return _evaluate_core(txn)
