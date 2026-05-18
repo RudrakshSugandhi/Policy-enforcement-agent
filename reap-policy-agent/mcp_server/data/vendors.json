@@ -122,5 +122,14 @@
     "category": "Software",
     "country": "US",
     "on_blocklist": true
+  },
+  {
+    "vendor_id": "vnd-016",
+    "tenant_id": "meru-inc",
+    "name": "Cmpetitor Corp",
+    "category": "Consulting",
+    "country": "US",
+    "on_blocklist": false,
+    "_note": "Typo variant of blocked 'Competitor Corp' — not caught by exact match"
   }
 ]

@@ -1,0 +1,162 @@
+[
+  {
+    "transaction_id": "a1b2c3d4-0001-0001-0001-000000000001",
+    "label": "Marriott Hotels $220 — 4-star hotel, receipt attached",
+    "expected_verdict": "pass_through",
+    "expected_action": "pass_through",
+    "accept_verdicts": ["pass_through", "needs_judgment"],
+    "deterministic": false,
+    "gap": false,
+    "notes": "Hotel star_rating absent from Vendor schema so rule engine emits needs_judgment; LLM should clear it as compliant."
+  },
+  {
+    "transaction_id": "a1b2c3d4-0002-0002-0002-000000000002",
+    "label": "Zoom Pro $299 — SaaS under pre-approval cap, no receipt",
+    "expected_verdict": "needs_evidence",
+    "expected_action": "request_evidence",
+    "accept_verdicts": ["needs_evidence"],
+    "deterministic": true,
+    "gap": false,
+    "notes": "Exceeds $75 receipt threshold; no receipt on file."
+  },
+  {
+    "transaction_id": "a1b2c3d4-0003-0003-0003-000000000003",
+    "label": "Grab $42 SGD — transport, under receipt threshold",
+    "expected_verdict": "pass_through",
+    "expected_action": "pass_through",
+    "accept_verdicts": ["pass_through"],
+    "deterministic": true,
+    "gap": false,
+    "notes": "42 SGD ≈ 31 USD; below $75 receipt threshold. No rules fire."
+  },
+  {
+    "transaction_id": "a1b2c3d4-0004-0004-0004-000000000004",
+    "label": "British Airways $580 — economy flight, receipt attached",
+    "expected_verdict": "pass_through",
+    "expected_action": "pass_through",
+    "accept_verdicts": ["pass_through"],
+    "deterministic": true,
+    "gap": false,
+    "notes": "Receipt attached. No hotel / blocklist / SaaS rules apply."
+  },
+  {
+    "transaction_id": "a1b2c3d4-0005-0005-0005-000000000005",
+    "label": "Capital Grille $68 — solo lunch, receipt attached",
+    "expected_verdict": "pass_through",
+    "expected_action": "pass_through",
+    "accept_verdicts": ["pass_through"],
+    "deterministic": true,
+    "gap": false,
+    "notes": "$68 < $75 receipt threshold. Receipt also attached. Clean pass."
+  },
+  {
+    "transaction_id": "a1b2c3d4-0006-0006-0006-000000000006",
+    "label": "Nobu London $180 — dinner, no receipt",
+    "expected_verdict": "needs_evidence",
+    "expected_action": "request_evidence",
+    "accept_verdicts": ["needs_evidence"],
+    "deterministic": true,
+    "gap": false,
+    "notes": "Exceeds $75; no receipt. Straightforward needs_evidence."
+  },
+  {
+    "transaction_id": "a1b2c3d4-0007-0007-0007-000000000007",
+    "label": "Competitor Corp $500 — blocklisted vendor",
+    "expected_verdict": "fail",
+    "expected_action": "block",
+    "accept_verdicts": ["fail"],
+    "deterministic": true,
+    "gap": false,
+    "notes": "Vendor explicitly on blocklist. Hard fail, block action."
+  },
+  {
+    "transaction_id": "a1b2c3d4-0008-0008-0008-000000000008",
+    "label": "Capital Grille $320 — ambiguous dinner, no receipt",
+    "expected_verdict": "needs_evidence",
+    "expected_action": "request_evidence",
+    "accept_verdicts": ["needs_evidence"],
+    "deterministic": true,
+    "gap": false,
+    "notes": "Exceeds $75; no receipt. May be compliant client dinner for 3 — evidence needed to confirm."
+  },
+  {
+    "transaction_id": "a1b2c3d4-0009-0009-0009-000000000009",
+    "label": "Four Seasons NY $450 — 5-star hotel, no receipt",
+    "expected_verdict": "needs_evidence",
+    "expected_action": "request_evidence",
+    "accept_verdicts": ["needs_evidence"],
+    "deterministic": true,
+    "gap": false,
+    "notes": "needs_evidence (receipt) beats needs_judgment (hotel star) in verdict precedence."
+  },
+  {
+    "transaction_id": "a1b2c3d4-0010-0010-0010-000000000010",
+    "label": "Salesforce $1200 — SaaS above pre-approval cap, no receipt",
+    "expected_verdict": "fail",
+    "expected_action": "escalate",
+    "accept_verdicts": ["fail"],
+    "deterministic": true,
+    "gap": false,
+    "notes": "SaaS >$500/month triggers category_pre_approval; escalate to dept head."
+  },
+  {
+    "transaction_id": "a1b2c3d4-0011-0011-0011-000000000011",
+    "label": "Structuring day 1 — Capital Grille $149, no receipt",
+    "expected_verdict": "needs_evidence",
+    "expected_action": "request_evidence",
+    "accept_verdicts": ["needs_evidence"],
+    "deterministic": true,
+    "gap": false,
+    "notes": "Phase 14. Individual transaction: $149 > $75, no receipt. Structuring pattern across days 1–3 is a future batch-sweep component (see design doc)."
+  },
+  {
+    "transaction_id": "a1b2c3d4-0012-0012-0012-000000000012",
+    "label": "Structuring day 2 — Capital Grille $148, no receipt",
+    "expected_verdict": "needs_evidence",
+    "expected_action": "request_evidence",
+    "accept_verdicts": ["needs_evidence"],
+    "deterministic": true,
+    "gap": false,
+    "notes": "Phase 14. $148 > $75, no receipt. Same employee, consecutive day."
+  },
+  {
+    "transaction_id": "a1b2c3d4-0013-0013-0013-000000000013",
+    "label": "Structuring day 3 — Capital Grille $147, no receipt",
+    "expected_verdict": "needs_evidence",
+    "expected_action": "request_evidence",
+    "accept_verdicts": ["needs_evidence"],
+    "deterministic": true,
+    "gap": false,
+    "notes": "Phase 14. $147 > $75, no receipt. Eval flags each individually; pattern detection is out of MVP scope."
+  },
+  {
+    "transaction_id": "a1b2c3d4-0014-0014-0014-000000000014",
+    "label": "Capital Grille $95 — receipt with alcohol, no attendee note",
+    "expected_verdict": "needs_judgment",
+    "expected_action": "flag",
+    "accept_verdicts": ["needs_judgment", "needs_evidence"],
+    "deterministic": false,
+    "gap": true,
+    "notes": "Phase 14. Receipt present so receipt rule does not fire. NL policy requires attendee list when alcohol is claimed. No structured rule covers this — known policy gap. System currently returns pass_through (false negative)."
+  },
+  {
+    "transaction_id": "a1b2c3d4-0015-0015-0015-000000000015",
+    "label": "Cmpetitor Corp $500 — typo of blocked vendor, no receipt",
+    "expected_verdict": "needs_judgment",
+    "expected_action": "flag",
+    "accept_verdicts": ["needs_judgment", "fail"],
+    "deterministic": false,
+    "gap": true,
+    "notes": "Phase 14. 'Cmpetitor Corp' is one character away from blocked 'Competitor Corp'. Exact-match blocklist misses it; system returns needs_evidence. Fuzzy vendor matching is a future enhancement."
+  },
+  {
+    "transaction_id": "a1b2c3d4-0016-0016-0016-000000000016",
+    "label": "Uber €70 EUR — airport transfer, crosses $75 threshold when converted",
+    "expected_verdict": "needs_evidence",
+    "expected_action": "request_evidence",
+    "accept_verdicts": ["needs_evidence"],
+    "deterministic": true,
+    "gap": false,
+    "notes": "Phase 14. 70 EUR / 0.92 = 76.09 USD > $75 receipt threshold. Tests cross-currency FX conversion in rule engine."
+  }
+]

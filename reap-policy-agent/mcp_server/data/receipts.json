@@ -36,5 +36,18 @@
     ],
     "attendees": null,
     "business_purpose": "Working lunch — solo"
+  },
+  {
+    "receipt_id": "b1c2d3e4-0014-0014-0014-000000000014",
+    "transaction_id": "a1b2c3d4-0014-0014-0014-000000000014",
+    "total_amount": "95.00",
+    "currency": "USD",
+    "line_items": [
+      { "name": "Steak", "amount": "55.00", "category": "Food" },
+      { "name": "House wine (2 glasses)", "amount": "28.00", "category": "Alcohol" },
+      { "name": "Service charge", "amount": "12.00", "category": "Service" }
+    ],
+    "attendees": null,
+    "business_purpose": "Client dinner"
   }
 ]
