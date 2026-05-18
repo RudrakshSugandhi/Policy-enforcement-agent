@@ -84,23 +84,26 @@
 
 We should not use LLM-only enforcement. We should not use rules-only enforcement. The best choice is **hybrid: structured rules plus natural-language reference**.
 
-### Structured Rules
-- Used for measurable checks.
-- Examples: `amount > cap`, vendor in banned list, receipt missing, category banned, hotel star rating too high.
-- Benefits: fast, cheap, reliable, auditable, and testable.
+### Why not LLM-only?
+Real customer policies contain clauses like "hotel spend must not exceed $250 per night in NYC". A pure LLM approach produces non-deterministic output: the same transaction can get different verdicts on different runs, and there is no audit trail showing exactly which rule fired. At scale, even a 1% inconsistency rate means hundreds of wrong decisions per day. Finance teams need to be able to explain every flag to an employee — "the LLM thought it was non-compliant" is not an acceptable answer.
 
-### Natural-Language Reference with LLM
-- Used only for ambiguous cases.
-- Examples: "reasonable dinner", "business necessity", "client meal", "good judgment".
-- Benefits: handles real-world policy language and missing context.
+### Why not rules-only?
+Real policies also contain clauses like "alcohol is reimbursable only when clients are present" and "reasonable business necessity applies". These require interpretation that no finite rule set can fully encode. An employee who claims $120 in wine at a dinner with three named clients is behaving differently from one who claims the same amount alone — the numbers are identical but the context is not. Rules without language understanding produce both false positives (flagging legitimate spend) and false negatives (missing policy violations hidden in ambiguous language).
 
-### Rule for Deciding Layer
-| Condition | Layer |
-|---|---|
-| Measurable | Structured rules |
-| Needs interpretation | LLM |
+### The hybrid model
+| Policy clause type | Layer | Examples |
+|---|---|---|
+| Measurable threshold | Structured rule | `amount > $75 → receipt required` |
+| Categorical ban | Structured rule | `vendor in [Competitor Corp] → block` |
+| Conditional interpretation | NL reference + LLM | "clients present", "reasonable", "good judgment" |
+| Context-dependent | NL reference + LLM | Attendee list, calendar cross-check, purpose statement |
 
-Structured rules always run before the LLM.
+**Implementation:**
+1. At compile time, the LLM reads the natural-language policy and emits two artefacts: (a) structured `CompiledRule` objects for anything measurable, and (b) `NaturalLanguageReference` entries for clauses it could not convert. Unsupported clauses are flagged explicitly.
+2. At evaluation time, structured rules run first — deterministic, fast, auditable. If the result is unambiguous (pass or fail), the LLM is never invoked.
+3. Only when structured rules return `needs_judgment` does the LLM run, with the relevant NL references injected into its system prompt.
+
+This means the LLM is a fallback, not the primary evaluator. Deterministic accuracy stays at 100% for measurable cases; LLM adds judgment for the remainder.
 
 ---
 
@@ -119,50 +122,147 @@ Structured rules always run before the LLM.
 
 ## 8. Decision Point Strategy
 
-### Pre-Authorization
-- Runs before purchase is approved.
-- Best for hard blocks: banned vendors, banned categories, fraud-like patterns.
-- **Pros**: prevents bad spend before it happens.
-- **Cons**: strict latency, higher employee friction, false positives are painful.
+The three evaluation windows differ sharply on latency, cost, and the cost of a false positive. The choice is not binary — all three are used, at different points in the pipeline.
 
-### Post-Authorization Real Time
-- Runs immediately after transaction approval.
-- Best default for most policy checks.
-- **Pros**: fast feedback without blocking purchase.
-- **Cons**: spend may already have happened.
+| | Pre-authorization | Post-authorization real time | Batch sweep |
+|---|---|---|---|
+| **When it runs** | Before card approves | Within seconds of approval | Hours or days later |
+| **Latency budget** | <200 ms (synchronous) | 2–5 s acceptable | Minutes to hours |
+| **Compute cost** | High (every swipe) | Moderate (most swipes) | Low per-transaction (parallelised) |
+| **False positive cost** | **Very high** — blocks a legitimate purchase at point of sale; employee is embarrassed and loses time | Medium — employee gets a notification after the fact; recoverable | Low — employee has days to respond |
+| **False negative cost** | Low — post-auth sweep catches it | Medium — spend has occurred but recovery is still fast | High — money may be settled and harder to recover |
+| **Best for** | Hard bans: blocklisted vendors, MCC bans, card-level fraud signals | Receipt requests, amount caps, category checks, hotel star limits | Structuring patterns, duplicate receipts, policy-change retroactive sweeps |
 
-### Batch Sweep
-- Runs periodically across many transactions.
-- Best for audits, duplicate receipts, policy gaming, and repeated patterns.
-- **Pros**: good for deeper analysis and lower cost.
-- **Cons**: delayed feedback and slower recovery.
+### Consequences of getting pre-authorization wrong
 
-### Recommended Choice
-- Use **post-authorization real time** as the main flow.
-- Use **pre-authorization** only for simple high-confidence blocks.
-- Use **batch sweeps** for pattern detection and audits.
+A false positive at pre-authorization blocks a legitimate purchase. For a sales employee trying to pay for a client dinner, this is a significant moment of friction — it creates embarrassment, damages the client relationship, and erodes trust in the finance tool. Pre-auth checks must therefore be high-precision and low-latency. This limits them to simple deterministic checks: blocklist lookups, MCC bans, and card-level limits.
+
+A false positive at post-authorization sends an unnecessary evidence request. The employee is mildly inconvenienced but the purchase went through. Much more recoverable.
+
+### Recommended architecture
+
+- **Pre-authorization**: structured rules only, no LLM, <200 ms. Scoped to hard bans and card-level blocks.
+- **Post-authorization real time**: full pipeline (structured rules + LLM fallback). This is the main evaluation path used in this build.
+- **Batch sweep**: re-run structured rules across a time window to detect patterns (structuring, duplicate receipts). LLM is not run per-transaction in batch; it is used only to summarise flagged clusters for a human reviewer.
 
 ---
 
 ## 9. Autonomy Model
 
-### Agent Can Do Automatically
-- Approve compliant transaction.
-- Request receipt.
-- Ask for clarification.
-- Flag for review.
-- Send employee message.
+The core design principle is: **the agent's autonomy is proportional to the reversibility of the action**. Actions that can be undone cheaply are automated; actions that are hard to reverse or carry legal/employment risk require a human to approve.
 
-### Human Approval Required
-- Clawback.
-- Payroll deduction.
-- Card suspension.
-- HR/legal escalation.
-- Any high-impact action based on ambiguous judgment.
+### Agent acts automatically
+| Action | Reversible? | Why auto |
+|---|---|---|
+| Mark transaction compliant | Yes — can be revisited | Low risk; no employee impact |
+| Request receipt / evidence | Yes — request can be withdrawn | Employee expects this; no harm if wrong |
+| Flag for finance review | Yes — reviewer can dismiss | Surfaces problem without acting on it |
+| Send employee notification | Partially | Fast feedback; tone is informational not punitive |
+
+### Human approval required
+| Action | Why human must approve |
+|---|---|
+| Clawback / payroll deduction | Irreversible financial impact on employee; employment law in most jurisdictions requires process |
+| Card suspension | Blocks all spend; high operational disruption if wrong |
+| HR/legal escalation | Creates a formal record; cannot be easily retracted |
+| Block at pre-authorization | Embarrasses employee at point of sale; false positive is costly |
+
+### Why clawback is particularly sensitive
+
+Clawback is the highest-risk action in the pipeline. Three reasons:
+
+1. **Employment law.** In most jurisdictions, deducting money from an employee's salary or reversing a payment requires either written consent or a formal dispute process. An automated clawback without due process exposes the company to legal liability even if the original spend was genuinely out of policy.
+
+2. **Irreversibility.** Once money is deducted, re-paying it requires a separate payroll cycle. An erroneous clawback creates concrete financial harm to the employee — not just inconvenience.
+
+3. **Confidence requirement.** The evidence threshold for clawback is much higher than for flagging. A model that is 90% confident the spend is non-compliant should flag it for review, not execute a clawback. Only a human who has reviewed the evidence, heard the employee's explanation, and confirmed the violation should authorise one.
+
+**Implementation guard:** the agent can call `propose_high_stakes_action(action="propose_clawback", ...)` which writes the proposal to `human_approval_queue.jsonl` with `status=pending_human_approval`. It never executes. The CARDINAL RULE in the judgment agent's system prompt states: *"NEVER auto-execute block or clawback — always use propose_high_stakes_action."*
 
 ---
 
-## 10. Production-Ready Considerations
+## 10. Receipt Parsing and Transaction Matching
+
+Receipts are the primary evidence that a transaction is policy-compliant. The pipeline needs to answer two questions for every receipt: is this receipt genuine, and does it belong to this transaction?
+
+### Ingestion
+
+In production, Reap already provides OCR-processed receipts via its existing infrastructure. The agent does not need to perform OCR itself — it receives structured receipt data: line items with names and amounts, total, currency, merchant name, and optionally attendees and business purpose.
+
+In this build, receipts are pre-parsed JSON records in `mcp_server/data/receipts.json`. The same data model is used so the switch to live OCR is a datasource swap, not a schema change.
+
+### Matching a receipt to a transaction
+
+A receipt is matched to a transaction on `transaction_id` as the primary key. In production, a secondary fuzzy match is needed because the receipt `transaction_id` may not always be present (e.g. a receipt uploaded by an employee after the fact). The fallback matching strategy:
+
+| Signal | Weight |
+|---|---|
+| Amount match (within ±5%) | High |
+| Merchant name similarity | High |
+| Timestamp proximity (±24h) | Medium |
+| Currency match | Medium |
+| Employee ID | Low (one employee, many transactions) |
+
+A receipt that matches on amount + merchant + timestamp is considered attached. A receipt where any of these diverge by more than the tolerance is flagged for manual review rather than silently linked.
+
+### Line-item analysis
+
+Once matched, the agent reads line items to apply specific policy rules:
+
+- **Alcohol rule**: if any line item is categorised as `Alcohol` and no attendee list is present, the NL reference "alcohol is reimbursable only when clients are present" applies. The structured rule engine cannot catch this alone — it requires the LLM to interpret the receipt content against the policy clause.
+- **Attendee note**: if the policy requires an attendee list and `receipt.attendees` is null, the `requires_attendee_note` predicate fires and returns `needs_evidence`.
+- **Amount cap**: `receipt.total_amount` is compared against the transaction amount. A significant discrepancy (>10%) triggers a flag even if both are individually within policy.
+
+### Known gap: alcohol line item without a structured rule
+
+The current demo policy does not include a `requires_attendee_note` rule for meal transactions. The eval harness (Phase 14) deliberately includes a receipt with alcohol line items and no attendee note — and correctly catches this as a **false negative** (verdict `pass_through` when `needs_judgment` is expected). Fixing it requires adding a `requires_attendee_note` structured rule scoped to meal MCC codes. This is the clearest example of a policy gap that the eval harness surfaces.
+
+---
+
+## 10b. Adversarial Users and Policy Gaming
+
+A policy enforcement system that employees know exists creates an incentive to game it. The brief explicitly calls out structuring as an example. This section catalogues the known attack patterns and our mitigations.
+
+### Structuring (splitting spend under caps)
+
+**Pattern:** An employee knows the receipt threshold is $150 per dinner. They submit three dinners at $149, $148, and $147 on consecutive days — individually compliant, collectively $444 in one week.
+
+**Why the current system catches individual cases but not the pattern:** Each transaction independently triggers `needs_evidence` (amount > $75, no receipt). The employee provides a receipt for each. Each passes individually. The aggregate pattern is invisible to a per-transaction rule engine.
+
+**Mitigation — batch sweep (planned):** A nightly batch job aggregates spend by employee × merchant × category × rolling 7-day window. If aggregate spend exceeds a configurable threshold, the cluster is flagged for finance review even if each transaction passed individually. This is out of MVP scope but is the designed next component. The eval harness (Phase 13/14) flags the three structuring transactions individually and includes a note pointing to this future component.
+
+### Vendor name typos to evade the blocklist
+
+**Pattern:** Blocked vendor is "Competitor Corp". Employee submits a charge to "Cmpetitor Corp" (one-character typo). Exact-match blocklist misses it.
+
+**Current behaviour:** The rule engine checks `txn.merchant_name.lower()` against blocklist entries. "cmpetitor corp" ≠ "competitor corp" — the rule does not fire. The transaction receives `needs_evidence` (receipt rule fires on amount), not `fail`.
+
+**Eval result:** Phase 14 eval case `txn-0015` confirms this — actual verdict is `needs_evidence`, expected is `needs_judgment`. This is a true miss, correctly labelled `GAP` in the eval output.
+
+**Mitigation:** Fuzzy vendor matching using edit distance (Levenshtein ≤ 2) or phonetic similarity on `merchant_name`. Matches within threshold return `needs_judgment` rather than silently passing. This is a planned enhancement — the data model already supports it since the blocklist is a simple string list that can be replaced with a similarity function.
+
+### Category misclassification
+
+**Pattern:** Employee submits a personal electronics purchase under MCC code 5812 (restaurants) to avoid a category ban on electronics.
+
+**Mitigation:** MCC code is set by the card network at authorisation time and cannot be changed by the employee. The agent checks MCC directly (`mcc_ban` predicate) and does not rely on the employee's description. Vendor category provides a secondary cross-check.
+
+### Receipt fabrication or alteration
+
+**Pattern:** Employee submits a fabricated or edited receipt to justify spend that did not occur or was less than claimed.
+
+**Mitigation:** In production, receipts should be ingested directly from Reap's existing OCR pipeline rather than accepted as employee uploads without verification. For employee-uploaded receipts, a confidence score from the OCR engine flags low-quality or digitally-created images. High-value transactions (above a configurable amount) require finance review of the receipt regardless of automated verdict. This is a trust boundary that the policy agent alone cannot fully enforce — it requires platform-level controls.
+
+### Summary of mitigations
+
+| Attack | Current status | Planned fix |
+|---|---|---|
+| Structuring under per-transaction cap | Caught individually; pattern missed | Batch sweep on rolling window |
+| Vendor name typo evading blocklist | Missed (GAP in eval) | Fuzzy vendor matching (edit distance) |
+| Category misclassification | Caught via MCC (card network sets it) | Already implemented |
+| Receipt fabrication | Caught only if OCR pipeline flags it | Platform-level image verification |
+
+---
 
 | Area | Detail |
 |---|---|
@@ -377,31 +477,37 @@ Tenant: **Meru Inc** (`meru-inc`). All files are JSON and served by the MCP serv
 | emp-004 | Tom Hargreaves | Sales | GB | IC4 |
 | emp-005 | Sarah Kim | Engineering | US | Director |
 
-### Vendors — 15 records (2 blocklisted)
-13 allowed vendors across Hotels, Transport, Travel, Software, and Restaurants. Blocklisted: **Competitor Corp** and **RivalCo**. Hotel vendors carry a `star_rating` field used by the hotel star rule.
+### Vendors — 16 records (2 blocklisted)
+14 allowed vendors across Hotels, Transport, Travel, Software, and Restaurants. Blocklisted: **Competitor Corp** and **RivalCo**. Hotel vendors carry a `star_rating` field used by the hotel star rule. **Cmpetitor Corp** (`vnd-016`) is included as a Phase 14 adversarial case — a one-character typo of the blocked vendor that is not on the blocklist and not caught by exact matching.
 
-### Transactions — 10 records
+### Transactions — 16 records
 | ID | Employee | Amount | Scenario |
 |---|---|---|---|
-| txn-001 | emp-001 | $220 USD | Compliant hotel — 4-star, under NYC cap, receipt attached |
-| txn-002 | emp-002 | $299 USD | Compliant SaaS — under $500 pre-approval threshold |
-| txn-003 | emp-003 | SGD 42 | Compliant transport — under receipt threshold |
+| txn-001 | emp-001 | $220 USD | Compliant hotel — 4-star, receipt attached; judgment agent handles star check |
+| txn-002 | emp-002 | $299 USD | Needs evidence — SaaS $299, no receipt, above $75 threshold |
+| txn-003 | emp-003 | SGD 42 | Compliant transport — SGD 42 ≈ USD 31, under receipt threshold |
 | txn-004 | emp-004 | $580 USD | Compliant flight — receipt attached |
-| txn-005 | emp-005 | $68 USD | Compliant solo lunch — receipt attached |
+| txn-005 | emp-005 | $68 USD | Compliant solo lunch — under $75 threshold, receipt attached |
 | txn-006 | emp-001 | $180 USD | **Fail** — over $75 receipt threshold, no receipt |
 | txn-007 | emp-002 | $500 USD | **Fail** — Competitor Corp is blocklisted |
 | txn-008 | emp-003 | $320 USD | **Ambiguous** — solo overspend or compliant client dinner for 3? |
-| txn-009 | emp-004 | $450 USD | **Fail** — 5-star hotel, exceeds star limit and $250 NYC cap |
+| txn-009 | emp-004 | $450 USD | **Fail** — 5-star hotel, no receipt, needs evidence |
 | txn-010 | emp-005 | $1200 USD | **Fail** — SaaS above $500/month, no pre-approval on record |
+| txn-011 | emp-001 | $149 USD | **Phase 14** — structuring day 1, no receipt |
+| txn-012 | emp-001 | $148 USD | **Phase 14** — structuring day 2, no receipt |
+| txn-013 | emp-001 | $147 USD | **Phase 14** — structuring day 3, no receipt |
+| txn-014 | emp-003 | $95 USD | **Phase 14** — receipt with alcohol line items, no attendee note (known gap) |
+| txn-015 | emp-002 | $500 USD | **Phase 14** — typo vendor "Cmpetitor Corp", not caught by blocklist |
+| txn-016 | emp-005 | €70 EUR | **Phase 14** — EUR transaction, 70 EUR ≈ USD 76, crosses $75 receipt threshold |
 
-### Receipts — 3 records
-Attached to txn-001 (hotel), txn-004 (flight), txn-005 (lunch). txn-006 through txn-010 are intentionally missing receipts where noted.
+### Receipts — 4 records
+Attached to txn-001 (hotel), txn-004 (flight), txn-005 (lunch), and txn-014 (client dinner with alcohol line items — the adversarial receipt). txn-002, txn-006 through txn-010, and txn-011 through txn-013 are intentionally missing receipts.
 
 ### Calendar — keyed by employee_id
 Used to resolve the ambiguous txn-008: emp-003 has a confirmed client dinner event (`is_client_meeting: true`) on 2026-05-14 19:00 overlapping the transaction, which the judgment agent can use as supporting evidence.
 
-### Policy — `policies/Meru_v1.txt`
-8 natural-language clauses covering: receipt threshold ($75), hotel star limit and nightly caps (NYC/London $250, Singapore SGD 200), client dinner reimbursement ($150/person), alcohol rule, SaaS pre-approval ($500/month), vendor blocklist, team entertainment, and quarterly board reporting.
+### Policy — active compiled policy (version 5, `dddddddd-...`)
+4 structured rules: receipt required above $75, hotel star max 4, vendor blocklist (Competitor Corp / RivalCo → block), SaaS pre-approval above $500/month (→ escalate). Plus 1 natural-language reference for alcohol/client-presence clause and 1 unsupported clause (quarterly board report obligation).
 
 ---
 
