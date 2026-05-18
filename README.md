@@ -51,6 +51,8 @@ uvicorn backend.app.api:app --reload --port 8000
 Backend runs at `http://localhost:8000`  
 Interactive docs at `http://localhost:8000/docs`
 
+![Backend API docs](Application%20Screenshots/Screenshot%202026-05-18%20at%204.35.31%E2%80%AFPM.png)
+
 ### 2 — Frontend
 
 ```bash
@@ -60,6 +62,8 @@ npm run dev
 ```
 
 Frontend runs at `http://localhost:3000`
+
+![Application frontend](Application%20Screenshots/Screenshot%202026-05-18%20at%204.36.51%E2%80%AFPM.png)
 
 > Both services must be running at the same time. Keep two terminal tabs open.
 

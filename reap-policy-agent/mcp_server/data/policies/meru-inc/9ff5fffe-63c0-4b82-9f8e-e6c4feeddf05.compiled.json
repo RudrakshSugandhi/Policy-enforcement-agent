@@ -1,8 +1,8 @@
 {
-  "policy_id": "a5f39b1d-c813-491b-aa36-25f4d8d25b46",
+  "policy_id": "9ff5fffe-63c0-4b82-9f8e-e6c4feeddf05",
   "tenant_id": "meru-inc",
-  "version": 10,
-  "status": "deprecated",
+  "version": 11,
+  "status": "active",
   "structured_rules": [
     {
       "rule_id": "rule-001",
@@ -54,6 +54,18 @@
       "evidence_required": [],
       "action_on_violation": "escalate",
       "source_clause": "SaaS subscriptions above 500 USD per month require pre-approval from the department head before purchase."
+    },
+    {
+      "rule_id": "rule-005",
+      "predicate": "amount_cap",
+      "parameters": {
+        "cap": 20,
+        "currency": "USD"
+      },
+      "applies_when": null,
+      "evidence_required": [],
+      "action_on_violation": "flag",
+      "source_clause": "Alcohol is reimbursable only when clients are present and must not exceed 20% of the total bill."
     }
   ],
   "natural_language_references": [
@@ -68,7 +80,8 @@
         "alcohol",
         "clients present",
         "client dinner",
-        "20%"
+        "20%",
+        "total bill"
       ]
     }
   ],
@@ -78,7 +91,7 @@
       "reason": "Board reporting is a governance obligation, not a transaction-level rule."
     }
   ],
-  "created_at": "2026-05-18T04:37:45.244055Z",
+  "created_at": "2026-05-18T20:38:35.804585Z",
   "approved_by": "reviewer",
-  "approved_at": "2026-05-18T04:37:53.907945Z"
+  "approved_at": "2026-05-18T20:39:11.906896Z"
 }
