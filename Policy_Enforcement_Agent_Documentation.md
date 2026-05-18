@@ -1,4 +1,4 @@
-# Policy Enforcement Agent — Design Doc
+# Workflow 2 — Policy Enforcement Agent
 
 ## Three Important Evaluation Areas
 
@@ -10,12 +10,10 @@
 
 ## Product Context
 
-**Workflow chosen: Policy Enforcement Agent** — Workflow 2 from the brief.
-
 **Why this workflow:**
 
-- **Biggest financial impact.** Roughly 5% of customer spend goes out of policy and most of it is never recovered. A policy enforcement agent addresses this directly — saving real money every month, not just reducing close-time overhead.
-- **Cuts across all of Reap.** Card spend, bill pay, and Optimize all involve money that must follow rules. A policy agent is the right foundation for the AI CFO vision — it is not a narrow feature but a core primitive.
+- **Biggest financial impact.** Roughly 5% of customer spend goes out of policy and most of it is never recovered. A policy enforcement agent addresses this directly, saving real money every month, not just reducing close-time overhead.
+- **Cuts across all of Reap.** Card spend, bill pay, and Optimize all involve money that must follow rules. A policy agent is the right foundation for the AI CFO vision; it is not a narrow feature but a core primitive.
 - **Strongest production-readiness signal.** Policy enforcement forces genuine engagement with autonomy, reversibility, and human oversight in a way the other workflows do not. Getting this right demonstrates the hardest parts of building trustworthy agents.
 
 **The core loop:** ingest policies written in natural language → evaluate each transaction against them → take the right action → close the loop with the employee.
@@ -41,16 +39,20 @@
 
 ---
 
-## 3. Key Assumptions for 4–6 Hour Build
+## 3. Key Assumptions
 
-- Build the core agent first, not a full finance platform.
-- Frontend can be minimal; API/demo output is enough if time is tight.
-- Policy input starts as text. PDF/Word OCR can be future work.
-- Receipts can be represented as parsed sample data in the first version.
-- Real blocking, clawback, and payroll deduction are not executed in the demo.
-- The agent returns proposed actions and employee-facing messages.
-- Reap already provides transaction events, OCR'd receipts, vendor records, employees, and per-tenant chart of accounts. We mock these but the data model is multi-tenant throughout.
-- Policies are uploaded as natural language by the customer and change a few times per year.
+**Scope**
+- Core agent only: not a full finance platform.
+- Policies are natural-language text uploaded by the customer. PDF/Word OCR is future work.
+
+**Data**
+- Reap supplies transaction events, OCR'd receipts, vendor records, employee profiles, and per-tenant chart of accounts. These are mocked in the demo but the data model is multi-tenant throughout.
+- Receipts are represented as structured parsed data, not raw images or PDFs.
+- Policies change a few times per year; real-time sync is not a requirement.
+
+**Actions**
+- Real blocking, clawback, and payroll deduction are not executed. The agent proposes actions and generates employee-facing messages; a human operator carries them out.
+- High-stakes actions (clawback, suspension) are queued for human approval and never auto-executed.
 
 ---
 
@@ -85,22 +87,26 @@
 We should not use LLM-only enforcement. We should not use rules-only enforcement. The best choice is **hybrid: structured rules plus natural-language reference**.
 
 ### Why not LLM-only?
-Real customer policies contain clauses like "hotel spend must not exceed $250 per night in NYC". A pure LLM approach produces non-deterministic output: the same transaction can get different verdicts on different runs, and there is no audit trail showing exactly which rule fired. At scale, even a 1% inconsistency rate means hundreds of wrong decisions per day. Finance teams need to be able to explain every flag to an employee — "the LLM thought it was non-compliant" is not an acceptable answer.
+
+LLMs are non-deterministic: the same transaction can get different verdicts on different runs, with no audit trail showing which rule fired. Finance teams must be able to explain every flag; "the model thought it was non-compliant" is not defensible.
 
 ### Why not rules-only?
-Real policies also contain clauses like "alcohol is reimbursable only when clients are present" and "reasonable business necessity applies". These require interpretation that no finite rule set can fully encode. An employee who claims $120 in wine at a dinner with three named clients is behaving differently from one who claims the same amount alone — the numbers are identical but the context is not. Rules without language understanding produce both false positives (flagging legitimate spend) and false negatives (missing policy violations hidden in ambiguous language).
+
+Policies contain clauses like "alcohol is reimbursable only when clients are present." No finite rule set can encode contextual intent: identical amounts can be compliant or non-compliant depending on who was present. Rules alone produce false positives on legitimate spend and false negatives on violations buried in ambiguous language.
 
 ### The hybrid model
-| Policy clause type | Layer | Examples |
-|---|---|---|
-| Measurable threshold | Structured rule | `amount > $75 → receipt required` |
-| Categorical ban | Structured rule | `vendor in [Competitor Corp] → block` |
-| Conditional interpretation | NL reference + LLM | "clients present", "reasonable", "good judgment" |
-| Context-dependent | NL reference + LLM | Attendee list, calendar cross-check, purpose statement |
+
+| Policy clause type         | Layer              | Examples                                               |
+| -------------------------- | ------------------ | ------------------------------------------------------ |
+| Measurable threshold       | Structured rule    | `amount > $75 → receipt required`                   |
+| Categorical ban            | Structured rule    | `vendor in [Competitor Corp] → block`               |
+| Conditional interpretation | NL reference + LLM | "clients present", "reasonable", "good judgment"       |
+| Context-dependent          | NL reference + LLM | Attendee list, calendar cross-check, purpose statement |
 
 **Implementation:**
+
 1. At compile time, the LLM reads the natural-language policy and emits two artefacts: (a) structured `CompiledRule` objects for anything measurable, and (b) `NaturalLanguageReference` entries for clauses it could not convert. Unsupported clauses are flagged explicitly.
-2. At evaluation time, structured rules run first — deterministic, fast, auditable. If the result is unambiguous (pass or fail), the LLM is never invoked.
+2. At evaluation time, structured rules run first: deterministic, fast, auditable. If the result is unambiguous (pass or fail), the LLM is never invoked.
 3. Only when structured rules return `needs_judgment` does the LLM run, with the relevant NL references injected into its system prompt.
 
 This means the LLM is a fallback, not the primary evaluator. Deterministic accuracy stays at 100% for measurable cases; LLM adds judgment for the remainder.
@@ -122,22 +128,20 @@ This means the LLM is a fallback, not the primary evaluator. Deterministic accur
 
 ## 8. Decision Point Strategy
 
-The three evaluation windows differ sharply on latency, cost, and the cost of a false positive. The choice is not binary — all three are used, at different points in the pipeline.
+The three evaluation windows differ sharply on latency, cost, and the cost of a false positive. The choice is not binary; all three are used at different points in the pipeline.
 
-| | Pre-authorization | Post-authorization real time | Batch sweep |
-|---|---|---|---|
-| **When it runs** | Before card approves | Within seconds of approval | Hours or days later |
-| **Latency budget** | <200 ms (synchronous) | 2–5 s acceptable | Minutes to hours |
-| **Compute cost** | High (every swipe) | Moderate (most swipes) | Low per-transaction (parallelised) |
-| **False positive cost** | **Very high** — blocks a legitimate purchase at point of sale; employee is embarrassed and loses time | Medium — employee gets a notification after the fact; recoverable | Low — employee has days to respond |
-| **False negative cost** | Low — post-auth sweep catches it | Medium — spend has occurred but recovery is still fast | High — money may be settled and harder to recover |
-| **Best for** | Hard bans: blocklisted vendors, MCC bans, card-level fraud signals | Receipt requests, amount caps, category checks, hotel star limits | Structuring patterns, duplicate receipts, policy-change retroactive sweeps |
+|                               | Pre-authorization                                                                                          | Post-authorization real time                                      | Batch sweep                                                                |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| **When it runs**        | Before card approves                                                                                       | Within seconds of approval                                        | Hours or days later                                                        |
+| **Latency budget**      | <200 ms (synchronous)                                                                                      | 2–5 s acceptable                                                 | Minutes to hours                                                           |
+| **Compute cost**        | High (every swipe)                                                                                         | Moderate (most swipes)                                            | Low per-transaction (parallelised)                                         |
+| **False positive cost** | **Very high**: blocks a legitimate purchase at point of sale; employee is embarrassed and loses time | Medium: employee gets a notification after the fact; recoverable  | Low: employee has days to respond                                          |
+| **False negative cost** | Low: post-auth sweep catches it                                                                            | Medium: spend has occurred but recovery is still fast             | High: money may be settled and harder to recover                           |
+| **Best for**            | Hard bans: blocklisted vendors, MCC bans, card-level fraud signals                                         | Receipt requests, amount caps, category checks, hotel star limits | Structuring patterns, duplicate receipts, policy-change retroactive sweeps |
 
 ### Consequences of getting pre-authorization wrong
 
-A false positive at pre-authorization blocks a legitimate purchase. For a sales employee trying to pay for a client dinner, this is a significant moment of friction — it creates embarrassment, damages the client relationship, and erodes trust in the finance tool. Pre-auth checks must therefore be high-precision and low-latency. This limits them to simple deterministic checks: blocklist lookups, MCC bans, and card-level limits.
-
-A false positive at post-authorization sends an unnecessary evidence request. The employee is mildly inconvenienced but the purchase went through. Much more recoverable.
+A pre-auth false positive blocks a purchase at point of sale, embarrassing the employee and damaging client trust. Checks here must be <200 ms and high-precision, limiting them to blocklist, MCC ban, and card-level lookups. A post-auth false positive sends an unnecessary evidence request; recoverable, since the purchase already went through.
 
 ### Recommended architecture
 
@@ -152,32 +156,32 @@ A false positive at post-authorization sends an unnecessary evidence request. Th
 The core design principle is: **the agent's autonomy is proportional to the reversibility of the action**. Actions that can be undone cheaply are automated; actions that are hard to reverse or carry legal/employment risk require a human to approve.
 
 ### Agent acts automatically
-| Action | Reversible? | Why auto |
-|---|---|---|
-| Mark transaction compliant | Yes — can be revisited | Low risk; no employee impact |
-| Request receipt / evidence | Yes — request can be withdrawn | Employee expects this; no harm if wrong |
-| Flag for finance review | Yes — reviewer can dismiss | Surfaces problem without acting on it |
-| Send employee notification | Partially | Fast feedback; tone is informational not punitive |
+
+| Action                     | Reversible?                   | Why auto                                          |
+| -------------------------- | ----------------------------- | ------------------------------------------------- |
+| Mark transaction compliant | Yes, can be revisited         | Low risk; no employee impact                      |
+| Request receipt / evidence | Yes, request can be withdrawn | Employee expects this; no harm if wrong           |
+| Flag for finance review    | Yes, reviewer can dismiss    | Surfaces problem without acting on it             |
+| Send employee notification | Partially                     | Fast feedback; tone is informational not punitive |
 
 ### Human approval required
-| Action | Why human must approve |
-|---|---|
+
+| Action                       | Why human must approve                                                                           |
+| ---------------------------- | ------------------------------------------------------------------------------------------------ |
 | Clawback / payroll deduction | Irreversible financial impact on employee; employment law in most jurisdictions requires process |
-| Card suspension | Blocks all spend; high operational disruption if wrong |
-| HR/legal escalation | Creates a formal record; cannot be easily retracted |
-| Block at pre-authorization | Embarrasses employee at point of sale; false positive is costly |
+| Card suspension              | Blocks all spend; high operational disruption if wrong                                           |
+| HR/legal escalation          | Creates a formal record; cannot be easily retracted                                              |
+| Block at pre-authorization   | Embarrasses employee at point of sale; false positive is costly                                  |
 
 ### Why clawback is particularly sensitive
 
-Clawback is the highest-risk action in the pipeline. Three reasons:
+Clawback is the highest-risk action in the pipeline for three reasons:
 
-1. **Employment law.** In most jurisdictions, deducting money from an employee's salary or reversing a payment requires either written consent or a formal dispute process. An automated clawback without due process exposes the company to legal liability even if the original spend was genuinely out of policy.
+1. **Employment law**: deducting from salary requires written consent or a formal dispute process; automated execution creates legal liability even if the spend was genuinely out of policy.
+2. **Irreversibility**: re-paying an erroneous deduction requires a separate payroll cycle, causing real financial harm to the employee.
+3. **Confidence threshold**: a model at 90% confidence should flag, not execute; only a human who has reviewed the evidence and heard the employee's response should authorise a clawback.
 
-2. **Irreversibility.** Once money is deducted, re-paying it requires a separate payroll cycle. An erroneous clawback creates concrete financial harm to the employee — not just inconvenience.
-
-3. **Confidence requirement.** The evidence threshold for clawback is much higher than for flagging. A model that is 90% confident the spend is non-compliant should flag it for review, not execute a clawback. Only a human who has reviewed the evidence, heard the employee's explanation, and confirmed the violation should authorise one.
-
-**Implementation guard:** the agent can call `propose_high_stakes_action(action="propose_clawback", ...)` which writes the proposal to `human_approval_queue.jsonl` with `status=pending_human_approval`. It never executes. The CARDINAL RULE in the judgment agent's system prompt states: *"NEVER auto-execute block or clawback — always use propose_high_stakes_action."*
+**Implementation guard:** the agent never executes a clawback directly. Instead, it calls `propose_high_stakes_action`, which queues a proposal in `human_approval_queue.jsonl` with `status=pending_human_approval` and waits for a human to act. This is enforced by a hard rule in the judgment agent's system prompt: *"NEVER auto-execute block or clawback — always use propose_high_stakes_action."*
 
 ---
 
@@ -187,7 +191,7 @@ Receipts are the primary evidence that a transaction is policy-compliant. The pi
 
 ### Ingestion
 
-In production, Reap already provides OCR-processed receipts via its existing infrastructure. The agent does not need to perform OCR itself — it receives structured receipt data: line items with names and amounts, total, currency, merchant name, and optionally attendees and business purpose.
+In production, Reap already provides OCR-processed receipts via its existing infrastructure. The agent does not need to perform OCR itself; it receives structured receipt data: line items with names and amounts, total, currency, merchant name, and optionally attendees and business purpose.
 
 In this build, receipts are pre-parsed JSON records in `mcp_server/data/receipts.json`. The same data model is used so the switch to live OCR is a datasource swap, not a schema change.
 
@@ -195,13 +199,13 @@ In this build, receipts are pre-parsed JSON records in `mcp_server/data/receipts
 
 A receipt is matched to a transaction on `transaction_id` as the primary key. In production, a secondary fuzzy match is needed because the receipt `transaction_id` may not always be present (e.g. a receipt uploaded by an employee after the fact). The fallback matching strategy:
 
-| Signal | Weight |
-|---|---|
-| Amount match (within ±5%) | High |
-| Merchant name similarity | High |
-| Timestamp proximity (±24h) | Medium |
-| Currency match | Medium |
-| Employee ID | Low (one employee, many transactions) |
+| Signal                      | Weight                                |
+| --------------------------- | ------------------------------------- |
+| Amount match (within ±5%)  | High                                  |
+| Merchant name similarity    | High                                  |
+| Timestamp proximity (±24h) | Medium                                |
+| Currency match              | Medium                                |
+| Employee ID                 | Low (one employee, many transactions) |
 
 A receipt that matches on amount + merchant + timestamp is considered attached. A receipt where any of these diverge by more than the tolerance is flagged for manual review rather than silently linked.
 
@@ -209,13 +213,13 @@ A receipt that matches on amount + merchant + timestamp is considered attached. 
 
 Once matched, the agent reads line items to apply specific policy rules:
 
-- **Alcohol rule**: if any line item is categorised as `Alcohol` and no attendee list is present, the NL reference "alcohol is reimbursable only when clients are present" applies. The structured rule engine cannot catch this alone — it requires the LLM to interpret the receipt content against the policy clause.
+- **Alcohol rule**: if any line item is categorised as `Alcohol` and no attendee list is present, the NL reference "alcohol is reimbursable only when clients are present" applies. The structured rule engine cannot catch this alone; it requires the LLM to interpret the receipt content against the policy clause.
 - **Attendee note**: if the policy requires an attendee list and `receipt.attendees` is null, the `requires_attendee_note` predicate fires and returns `needs_evidence`.
 - **Amount cap**: `receipt.total_amount` is compared against the transaction amount. A significant discrepancy (>10%) triggers a flag even if both are individually within policy.
 
 ### Known gap: alcohol line item without a structured rule
 
-The current demo policy does not include a `requires_attendee_note` rule for meal transactions. The eval harness (Phase 14) deliberately includes a receipt with alcohol line items and no attendee note — and correctly catches this as a **false negative** (verdict `pass_through` when `needs_judgment` is expected). Fixing it requires adding a `requires_attendee_note` structured rule scoped to meal MCC codes. This is the clearest example of a policy gap that the eval harness surfaces.
+The current demo policy does not include a `requires_attendee_note` rule for meal transactions. The eval harness (Phase 14) deliberately includes a receipt with alcohol line items and no attendee note, and correctly catches this as a **false negative** (verdict `pass_through` when `needs_judgment` is expected). Fixing it requires adding a `requires_attendee_note` structured rule scoped to meal MCC codes. This is the clearest example of a policy gap that the eval harness surfaces.
 
 ---
 
@@ -225,55 +229,53 @@ A policy enforcement system that employees know exists creates an incentive to g
 
 ### Structuring (splitting spend under caps)
 
-**Pattern:** An employee knows the receipt threshold is $150 per dinner. They submit three dinners at $149, $148, and $147 on consecutive days — individually compliant, collectively $444 in one week.
+**Pattern:** Three dinners at $149, $148, $147 on consecutive days, each just under a $150 cap, collectively $444 in a week.
 
-**Why the current system catches individual cases but not the pattern:** Each transaction independently triggers `needs_evidence` (amount > $75, no receipt). The employee provides a receipt for each. Each passes individually. The aggregate pattern is invisible to a per-transaction rule engine.
+**Current behaviour:** Each triggers `needs_evidence` individually (amount > $75, no receipt). With receipts attached, each passes. The aggregate pattern is invisible to a per-transaction engine.
 
-**Mitigation — batch sweep (planned):** A nightly batch job aggregates spend by employee × merchant × category × rolling 7-day window. If aggregate spend exceeds a configurable threshold, the cluster is flagged for finance review even if each transaction passed individually. This is out of MVP scope but is the designed next component. The eval harness (Phase 13/14) flags the three structuring transactions individually and includes a note pointing to this future component.
+**Mitigation (planned):** A nightly batch job aggregates spend by employee × merchant × category × rolling 7-day window and flags clusters that exceed a configurable threshold even if each transaction passed individually. Out of MVP scope; the eval harness notes this gap explicitly.
 
 ### Vendor name typos to evade the blocklist
 
-**Pattern:** Blocked vendor is "Competitor Corp". Employee submits a charge to "Cmpetitor Corp" (one-character typo). Exact-match blocklist misses it.
+**Pattern:** "Cmpetitor Corp" (one-character typo of blocked "Competitor Corp") passes exact-match blocklist check.
 
-**Current behaviour:** The rule engine checks `txn.merchant_name.lower()` against blocklist entries. "cmpetitor corp" ≠ "competitor corp" — the rule does not fire. The transaction receives `needs_evidence` (receipt rule fires on amount), not `fail`.
+**Current behaviour:** Rule engine compares `txn.merchant_name.lower()` exactly; no match, rule does not fire. Transaction returns `needs_evidence` on the receipt rule, not `fail`. Confirmed as a `GAP` in the Phase 14 eval (`txn-0015`).
 
-**Eval result:** Phase 14 eval case `txn-0015` confirms this — actual verdict is `needs_evidence`, expected is `needs_judgment`. This is a true miss, correctly labelled `GAP` in the eval output.
-
-**Mitigation:** Fuzzy vendor matching using edit distance (Levenshtein ≤ 2) or phonetic similarity on `merchant_name`. Matches within threshold return `needs_judgment` rather than silently passing. This is a planned enhancement — the data model already supports it since the blocklist is a simple string list that can be replaced with a similarity function.
+**Mitigation (planned):** Fuzzy matching using Levenshtein distance ≤ 2 on `merchant_name`. Near-matches return `needs_judgment` instead of passing silently. The blocklist is a plain string list; swapping in a similarity function requires no schema change.
 
 ### Category misclassification
 
-**Pattern:** Employee submits a personal electronics purchase under MCC code 5812 (restaurants) to avoid a category ban on electronics.
+**Pattern:** Personal electronics submitted under MCC 5812 (restaurants) to avoid a category ban.
 
-**Mitigation:** MCC code is set by the card network at authorisation time and cannot be changed by the employee. The agent checks MCC directly (`mcc_ban` predicate) and does not rely on the employee's description. Vendor category provides a secondary cross-check.
+**Mitigation:** MCC is set by the card network at authorisation and cannot be changed by the employee. The agent checks MCC directly via the `mcc_ban` predicate; vendor category provides a secondary cross-check.
 
 ### Receipt fabrication or alteration
 
-**Pattern:** Employee submits a fabricated or edited receipt to justify spend that did not occur or was less than claimed.
+**Pattern:** Fabricated or edited receipt submitted to justify spend that did not occur or was overstated.
 
-**Mitigation:** In production, receipts should be ingested directly from Reap's existing OCR pipeline rather than accepted as employee uploads without verification. For employee-uploaded receipts, a confidence score from the OCR engine flags low-quality or digitally-created images. High-value transactions (above a configurable amount) require finance review of the receipt regardless of automated verdict. This is a trust boundary that the policy agent alone cannot fully enforce — it requires platform-level controls.
+**Mitigation:** Receipts should be ingested from Reap's existing OCR pipeline rather than accepted as raw employee uploads. OCR confidence scores flag low-quality or digitally-created images. High-value transactions require finance review of the receipt regardless of automated verdict. This is a platform-level control; the policy agent alone cannot enforce it.
 
 ### Summary of mitigations
 
-| Attack | Current status | Planned fix |
-|---|---|---|
-| Structuring under per-transaction cap | Caught individually; pattern missed | Batch sweep on rolling window |
-| Vendor name typo evading blocklist | Missed (GAP in eval) | Fuzzy vendor matching (edit distance) |
-| Category misclassification | Caught via MCC (card network sets it) | Already implemented |
-| Receipt fabrication | Caught only if OCR pipeline flags it | Platform-level image verification |
+| Attack                                | Current status                        | Planned fix                           |
+| ------------------------------------- | ------------------------------------- | ------------------------------------- |
+| Structuring under per-transaction cap | Caught individually; pattern missed   | Batch sweep on rolling window         |
+| Vendor name typo evading blocklist    | Missed (GAP in eval)                  | Fuzzy vendor matching (edit distance) |
+| Category misclassification            | Caught via MCC (card network sets it) | Already implemented                   |
+| Receipt fabrication                   | Caught only if OCR pipeline flags it  | Platform-level image verification     |
 
 ---
 
-| Area | Detail |
-|---|---|
-| Policy versioning | Evaluate each transaction against the policy active at transaction time. |
-| Human approval | Required before activating compiled policies. |
-| Audit logs | Store policy version, rules checked, evidence, LLM usage, action, reviewer, and timestamp. |
-| Explainability | Show why a transaction passed or failed. |
-| Guardrails | LLM can advise, but high-stakes actions need review. |
-| Monitoring | Track false positives, LLM usage, reviewer overrides, and recovery amount. |
-| Security | Tenant isolation, role-based access, encrypted receipts, and restricted audit access. |
-| Reliability | Deterministic rules should keep working even if LLM service is unavailable. |
+| Area              | Detail                                                                                     |
+| ----------------- | ------------------------------------------------------------------------------------------ |
+| Policy versioning | Evaluate each transaction against the policy active at transaction time.                   |
+| Human approval    | Required before activating compiled policies.                                              |
+| Audit logs        | Store policy version, rules checked, evidence, LLM usage, action, reviewer, and timestamp. |
+| Explainability    | Show why a transaction passed or failed.                                                   |
+| Guardrails        | LLM can advise, but high-stakes actions need review.                                       |
+| Monitoring        | Track false positives, LLM usage, reviewer overrides, and recovery amount.                 |
+| Security          | Tenant isolation, role-based access, encrypted receipts, and restricted audit access.      |
+| Reliability       | Deterministic rules should keep working even if LLM service is unavailable.                |
 
 ---
 
@@ -289,18 +291,18 @@ Every compiled policy moves through four states in order:
 draft  →  approved  →  active  →  deprecated
 ```
 
-| State | When it is set | Who sets it |
-|---|---|---|
-| `draft` | Immediately after LLM compilation | `policy_store.save_draft()` |
-| `approved` | After human review signs off | `scripts/review_policy.py` (Phase 5.3) |
-| `active` | When the policy is promoted for live evaluation | `policy_store.approve()` |
-| `deprecated` | When a newer policy becomes active | `policy_store.approve()` (automatically) |
+| State          | When it is set                                  | Who sets it                                |
+| -------------- | ----------------------------------------------- | ------------------------------------------ |
+| `draft`      | Immediately after LLM compilation               | `policy_store.save_draft()`              |
+| `approved`   | After human review signs off                    | `scripts/review_policy.py` (Phase 5.3)   |
+| `active`     | When the policy is promoted for live evaluation | `policy_store.approve()`                 |
+| `deprecated` | When a newer policy becomes active              | `policy_store.approve()` (automatically) |
 
 A policy that is `deprecated` is **never deleted**. It stays on disk so every past decision can be traced back to the exact rule set that produced it.
 
 ### 11.2 The One-Active-Policy Invariant
 
-The central rule is: **exactly one policy can be `active` per tenant at any given moment — never zero, never two.**
+The central rule is: **exactly one policy can be `active` per tenant at any given moment (never zero, never two).**
 
 This is enforced atomically inside `policy_store.approve()`:
 
@@ -316,7 +318,7 @@ Because step 2 runs before step 3 in a single synchronous function call, there i
 
 ### 11.3 Version Assignment
 
-Version numbers are sequential integers per tenant. The compiler itself is version-agnostic — it always produces `version=1` in its output. The store owns numbering:
+Version numbers are sequential integers per tenant. The compiler itself is version-agnostic; it always produces `version=1` in its output. The store owns numbering:
 
 ```python
 # policy_store.save_draft()
@@ -324,6 +326,7 @@ next_version = max(p.version for p in existing_versions, default=0) + 1
 ```
 
 This means:
+
 - First policy for a tenant: version 1.
 - Each subsequent compiled policy for that tenant: version N+1.
 - The version number in a `CompiledPolicy` is the authoritative identifier for a specific rule set, independent of the `policy_id` UUID.
@@ -338,16 +341,16 @@ The agent calls `policy_store.get_active(tenant_id)` at evaluation time. Because
 
 Batch sweeps re-examine transactions that have already settled, possibly days or weeks later, after the policy may have changed. Two defensible approaches exist:
 
-| Approach | Behaviour | When to use |
-|---|---|---|
-| **Evaluation-time policy** (our default) | Re-evaluate against the policy that is currently active. New rules apply retroactively. | Audit sweeps where the goal is "does this spend comply with our current rules?" |
-| **Transaction-time policy** | Retrieve the policy version that was active at the transaction timestamp. Use `list_versions()` + `approved_at` to reconstruct it. | Dispute resolution, clawback proposals, anything where the employee's obligation should be judged by what they were told at the time. |
+| Approach                                       | Behaviour                                                                                                                              | When to use                                                                                                                           |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| **Evaluation-time policy** (our default) | Re-evaluate against the policy that is currently active. New rules apply retroactively.                                                | Audit sweeps where the goal is "does this spend comply with our current rules?"                                                       |
+| **Transaction-time policy**              | Retrieve the policy version that was active at the transaction timestamp. Use `list_versions()` + `approved_at` to reconstruct it. | Dispute resolution, clawback proposals, anything where the employee's obligation should be judged by what they were told at the time. |
 
 Our implementation defaults to evaluation-time because it is simpler and the common audit case. Transaction-time reconstruction is available as a fallback: `policy_store.list_versions(tenant_id)` returns all versions with their `created_at` and `approved_at` timestamps, so the caller can binary-search for the version that was active at any historical moment.
 
 ### 11.5 Audit Trail
 
-Every `Decision` record stores `policy_version: int` — the version number that was used when the decision was made. This field is written at evaluation time and never changed. It means:
+Every `Decision` record stores `policy_version: int`, the version number that was used when the decision was made. This field is written at evaluation time and never changed. It means:
 
 - Finance can always ask "why was this transaction flagged?" and get a precise answer: "Rule `rule-003` in policy version 4 fired because the hotel rate was $320 against a $250 cap."
 - If a policy is later updated to raise the cap to $350, the historical decision still references version 4 and still shows the correct reason.
@@ -368,13 +371,13 @@ Each `.compiled.json` file is a self-contained `CompiledPolicy` blob. The status
 
 ### 11.7 Service API Summary
 
-| Function | Signature | What it does |
-|---|---|---|
-| `save_draft` | `(compiled_policy) → policy_id` | Assigns next version, forces status=draft, writes to disk |
-| `approve` | `(policy_id, reviewer_id) → CompiledPolicy` | draft → active; deprecates previous active |
-| `get_active` | `(tenant_id) → CompiledPolicy \| None` | Returns the single active policy, or None |
-| `get_version` | `(tenant_id, version) → CompiledPolicy \| None` | Retrieves a specific historical version |
-| `list_versions` | `(tenant_id) → list[CompiledPolicy]` | All versions sorted ascending — used for transaction-time reconstruction |
+| Function          | Signature                                         | What it does                                                              |
+| ----------------- | ------------------------------------------------- | ------------------------------------------------------------------------- |
+| `save_draft`    | `(compiled_policy) → policy_id`                | Assigns next version, forces status=draft, writes to disk                 |
+| `approve`       | `(policy_id, reviewer_id) → CompiledPolicy`    | draft → active; deprecates previous active                               |
+| `get_active`    | `(tenant_id) → CompiledPolicy \| None`          | Returns the single active policy, or None                                 |
+| `get_version`   | `(tenant_id, version) → CompiledPolicy \| None` | Retrieves a specific historical version                                   |
+| `list_versions` | `(tenant_id) → list[CompiledPolicy]`           | All versions sorted ascending; used for transaction-time reconstruction |
 
 ### 11.8 Implemented Tools and Evaluation Paths
 
@@ -403,6 +406,7 @@ Example: `$120 USD` with no receipt against a `$75 USD` receipt rule returns `ne
 Used only after structured checks cannot fully decide the case.
 
 Examples:
+
 - Alcohol reimbursable only when clients are present.
 - "Reasonable" or "good judgment" spend.
 - Client dinner context requiring calendar/receipt interpretation.
@@ -414,10 +418,12 @@ The LLM uses `NaturalLanguageReference` clauses plus transaction context. Clear 
 ## 12. Minimal Demo Output
 
 **Input**
+
 - Transaction: $320 USD hotel charge.
 - Policy: hotel cap is $250 USD unless manager approval exists.
 
 **Output**
+
 - **Status**: Non-compliant.
 - **Reason**: Amount exceeds hotel cap.
 - **Action**: Escalate for manager approval.
@@ -442,25 +448,25 @@ The LLM uses `NaturalLanguageReference` clauses plus transaction context. Clear 
 
 All data contracts are defined as Pydantic v2 models. Every field is typed and validated at the boundary.
 
-| Model | What it represents |
-|---|---|
-| `Transaction` | A single card spend event submitted for evaluation |
-| `Employee` | Staff member who initiated the transaction |
-| `Vendor` | Known merchant in the tenant's vendor master, with blocklist flag |
-| `Receipt` / `ReceiptLineItem` | OCR'd receipt and its itemised lines attached as evidence |
-| `CompiledRule` | One machine-executable rule extracted from natural language policy |
-| `NaturalLanguageReference` | Policy clause kept as text for LLM judgment on ambiguous cases |
-| `UnsupportedClause` | Clause the compiler could not convert to a structured rule |
-| `CompiledPolicy` | A versioned, approved policy with structured rules and NL references |
-| `Decision` | Final agent output: verdict, action, rule path, confidence, rationale |
-| `AuditEntry` | Immutable record of one pipeline step with inputs and outputs |
+| Model                             | What it represents                                                    |
+| --------------------------------- | --------------------------------------------------------------------- |
+| `Transaction`                   | A single card spend event submitted for evaluation                    |
+| `Employee`                      | Staff member who initiated the transaction                            |
+| `Vendor`                        | Known merchant in the tenant's vendor master, with blocklist flag     |
+| `Receipt` / `ReceiptLineItem` | OCR'd receipt and its itemised lines attached as evidence             |
+| `CompiledRule`                  | One machine-executable rule extracted from natural language policy    |
+| `NaturalLanguageReference`      | Policy clause kept as text for LLM judgment on ambiguous cases        |
+| `UnsupportedClause`             | Clause the compiler could not convert to a structured rule            |
+| `CompiledPolicy`                | A versioned, approved policy with structured rules and NL references  |
+| `Decision`                      | Final agent output: verdict, action, rule path, confidence, rationale |
+| `AuditEntry`                    | Immutable record of one pipeline step with inputs and outputs         |
 
 **Enums**
 
-- `PredicateType` — the kind of check a rule performs (e.g. `amount_cap`, `vendor_blocklist`, `per_diem_cap`).
-- `ActionType` — what the agent does on a result (e.g. `block`, `flag`, `escalate`, `propose_clawback`).
-- `PolicyStatus` — lifecycle of a compiled policy (`draft → approved → active → deprecated`).
-- `Verdict` — outcome of evaluating a transaction (`pass_through`, `fail`, `needs_evidence`, `needs_judgment`, `abstain`).
+- `PredicateType`: the kind of check a rule performs (e.g. `amount_cap`, `vendor_blocklist`, `per_diem_cap`).
+- `ActionType`: what the agent does on a result (e.g. `block`, `flag`, `escalate`, `propose_clawback`).
+- `PolicyStatus`: lifecycle of a compiled policy (`draft → approved → active → deprecated`).
+- `Verdict`: outcome of evaluating a transaction (`pass_through`, `fail`, `needs_evidence`, `needs_judgment`, `abstain`).
 
 ---
 
@@ -469,57 +475,65 @@ All data contracts are defined as Pydantic v2 models. Every field is typed and v
 Tenant: **Meru Inc** (`meru-inc`). All files are JSON and served by the MCP server. In production these are replaced by live Reap API calls.
 
 ### Employees — 5 records
-| ID | Name | Dept | Country | Level |
-|---|---|---|---|---|
-| emp-001 | Alice Chen | Sales | US | Manager |
-| emp-002 | Ben Williams | Engineering | GB | IC3 |
-| emp-003 | Leila Nasser | Marketing | SG | IC2 |
-| emp-004 | Tom Hargreaves | Sales | GB | IC4 |
-| emp-005 | Sarah Kim | Engineering | US | Director |
+
+| ID      | Name           | Dept        | Country | Level    |
+| ------- | -------------- | ----------- | ------- | -------- |
+| emp-001 | Alice Chen     | Sales       | US      | Manager  |
+| emp-002 | Ben Williams   | Engineering | GB      | IC3      |
+| emp-003 | Leila Nasser   | Marketing   | SG      | IC2      |
+| emp-004 | Tom Hargreaves | Sales       | GB      | IC4      |
+| emp-005 | Sarah Kim      | Engineering | US      | Director |
 
 ### Vendors — 16 records (2 blocklisted)
-14 allowed vendors across Hotels, Transport, Travel, Software, and Restaurants. Blocklisted: **Competitor Corp** and **RivalCo**. Hotel vendors carry a `star_rating` field used by the hotel star rule. **Cmpetitor Corp** (`vnd-016`) is included as a Phase 14 adversarial case — a one-character typo of the blocked vendor that is not on the blocklist and not caught by exact matching.
+
+14 allowed vendors across Hotels, Transport, Travel, Software, and Restaurants. Blocklisted: **Competitor Corp** and **RivalCo**. Hotel vendors carry a `star_rating` field used by the hotel star rule. **Cmpetitor Corp** (`vnd-016`) is included as a Phase 14 adversarial case: a one-character typo of the blocked vendor, not on the blocklist and not caught by exact matching.
 
 ### Transactions — 16 records
-| ID | Employee | Amount | Scenario |
-|---|---|---|---|
-| txn-001 | emp-001 | $220 USD | Compliant hotel — 4-star, receipt attached; judgment agent handles star check |
-| txn-002 | emp-002 | $299 USD | Needs evidence — SaaS $299, no receipt, above $75 threshold |
-| txn-003 | emp-003 | SGD 42 | Compliant transport — SGD 42 ≈ USD 31, under receipt threshold |
-| txn-004 | emp-004 | $580 USD | Compliant flight — receipt attached |
-| txn-005 | emp-005 | $68 USD | Compliant solo lunch — under $75 threshold, receipt attached |
-| txn-006 | emp-001 | $180 USD | **Fail** — over $75 receipt threshold, no receipt |
-| txn-007 | emp-002 | $500 USD | **Fail** — Competitor Corp is blocklisted |
-| txn-008 | emp-003 | $320 USD | **Ambiguous** — solo overspend or compliant client dinner for 3? |
-| txn-009 | emp-004 | $450 USD | **Fail** — 5-star hotel, no receipt, needs evidence |
-| txn-010 | emp-005 | $1200 USD | **Fail** — SaaS above $500/month, no pre-approval on record |
-| txn-011 | emp-001 | $149 USD | **Phase 14** — structuring day 1, no receipt |
-| txn-012 | emp-001 | $148 USD | **Phase 14** — structuring day 2, no receipt |
-| txn-013 | emp-001 | $147 USD | **Phase 14** — structuring day 3, no receipt |
-| txn-014 | emp-003 | $95 USD | **Phase 14** — receipt with alcohol line items, no attendee note (known gap) |
-| txn-015 | emp-002 | $500 USD | **Phase 14** — typo vendor "Cmpetitor Corp", not caught by blocklist |
-| txn-016 | emp-005 | €70 EUR | **Phase 14** — EUR transaction, 70 EUR ≈ USD 76, crosses $75 receipt threshold |
+
+| ID      | Employee | Amount                                                                        | Scenario                                                                               |
+| ------- | -------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| txn-001 | emp-001 | $220 USD  | Compliant hotel, 4-star, receipt attached; judgment agent handles star check |
+| txn-002 | emp-002 | $299 USD  | Needs evidence: SaaS $299, no receipt, above $75 threshold |
+| txn-003 | emp-003 | SGD 42    | Compliant transport: SGD 42 ≈ USD 31, under receipt threshold |
+| txn-004 | emp-004 | $580 USD  | Compliant flight, receipt attached |
+| txn-005 | emp-005 | $68 USD   | Compliant solo lunch, under $75 threshold, receipt attached |
+| txn-006 | emp-001 | $180 USD  | **Fail**: over $75 receipt threshold, no receipt |
+| txn-007 | emp-002 | $500 USD  | **Fail**: Competitor Corp is blocklisted |
+| txn-008 | emp-003 | $320 USD  | **Ambiguous**: solo overspend or compliant client dinner for 3? |
+| txn-009 | emp-004 | $450 USD  | **Fail**: 5-star hotel, no receipt, needs evidence |
+| txn-010 | emp-005 | $1200 USD | **Fail**: SaaS above $500/month, no pre-approval on record |
+| txn-011 | emp-001 | $149 USD  | **Phase 14**: structuring day 1, no receipt |
+| txn-012 | emp-001 | $148 USD  | **Phase 14**: structuring day 2, no receipt |
+| txn-013 | emp-001 | $147 USD  | **Phase 14**: structuring day 3, no receipt |
+| txn-014 | emp-003 | $95 USD   | **Phase 14**: receipt with alcohol line items, no attendee note (known gap) |
+| txn-015 | emp-002 | $500 USD  | **Phase 14**: typo vendor "Cmpetitor Corp", not caught by blocklist |
+| txn-016 | emp-005 | €70 EUR   | **Phase 14**: EUR transaction, 70 EUR ≈ USD 76, crosses $75 receipt threshold |
 
 ### Receipts — 4 records
-Attached to txn-001 (hotel), txn-004 (flight), txn-005 (lunch), and txn-014 (client dinner with alcohol line items — the adversarial receipt). txn-002, txn-006 through txn-010, and txn-011 through txn-013 are intentionally missing receipts.
+
+Attached to txn-001 (hotel), txn-004 (flight), txn-005 (lunch), and txn-014 (client dinner with alcohol line items, the adversarial receipt). txn-002, txn-006 through txn-010, and txn-011 through txn-013 are intentionally missing receipts.
 
 ### Calendar — keyed by employee_id
+
 Used to resolve the ambiguous txn-008: emp-003 has a confirmed client dinner event (`is_client_meeting: true`) on 2026-05-14 19:00 overlapping the transaction, which the judgment agent can use as supporting evidence.
 
 ### Policy — active compiled policy (version 5, `dddddddd-...`)
+
 4 structured rules: receipt required above $75, hotel star max 4, vendor blocklist (Competitor Corp / RivalCo → block), SaaS pre-approval above $500/month (→ escalate). Plus 1 natural-language reference for alcohol/client-presence clause and 1 unsupported clause (quarterly board report obligation).
 
 ---
 
 ## Production-Ready End Note
 
-- **MVP runs locally**: Next.js frontend, FastAPI backend, MCP server, and Ollama serving Qwen 2.5 7B.
-- One command should give the reviewer a working demo with no API costs and no cloud setup.
-- For production, the same code can run on AWS without major changes:
-  - Backend and MCP server deploy as AWS Lambda functions behind API Gateway.
-  - LLM endpoint moves from local Ollama to a managed inference API (Hugging Face Endpoints, Together AI, or AWS Bedrock).
-  - File-based mocks move to Postgres on RDS.
-  - Audit logs move to S3 or a dedicated append-only audit table.
-- This works because the architecture is **deployment-agnostic**:
-  - The LLM is reached through an OpenAI-compatible client, so the model can be swapped with a config change.
-  - Storage is behind a simple interface, so the database can be swapped the same way.
+The MVP runs entirely on a laptop: Next.js frontend, FastAPI backend, MCP server, and Ollama serving Qwen 2.5 7B. One command gives a reviewer a working demo with no API costs and no cloud setup.
+
+The same code moves to production without major changes because the architecture is deployment-agnostic:
+
+| Component   | MVP (local)            | Production (AWS)                                     |
+| ----------- | ---------------------- | ---------------------------------------------------- |
+| Backend     | FastAPI + uvicorn      | AWS Lambda behind API Gateway                        |
+| LLM         | Ollama (Qwen 2.5 7B)   | Managed inference (HuggingFace, Together AI, Bedrock) |
+| Storage     | JSON flat files        | Postgres on RDS                                      |
+| Audit log   | Append-only JSONL      | S3 or dedicated append-only audit table              |
+
+The LLM is reached through an OpenAI-compatible client, so the model is a config change. Storage sits behind a simple interface, so the database is a config change too.

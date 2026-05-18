@@ -21,7 +21,7 @@
 - High-stakes actions like clawback should require human approval.\par
 - The product should start with reversible actions: flag, request receipt, ask clarification, and escalate.\par
 \par
-\b 3. Key Assumptions for 4-6 Hour Build\b0\par
+\b 3. Key Assumptions\b0\par
 - Build the core agent first, not a full finance platform.\par
 - Frontend can be minimal; API/demo output is enough if time is tight.\par
 - Policy input starts as text. PDF/Word OCR can be future work.\par
