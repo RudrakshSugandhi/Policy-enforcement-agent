@@ -51,7 +51,7 @@
 - Policies change a few times per year; real-time sync is not a requirement.
 
 **Actions**
-- Real blocking, clawback, and payroll deduction are not executed. The agent proposes actions and generates employee-facing messages; a human operator carries them out.
+- Real blocking, clawback, and payroll deduction are not executed. The agent proposes actions and generates employee-facing messages.
 - High-stakes actions (clawback, suspension) are queued for human approval and never auto-executed.
 
 ---
@@ -187,82 +187,29 @@ Clawback is the highest-risk action in the pipeline for three reasons:
 
 ## 10. Receipt Parsing and Transaction Matching
 
-Receipts are the primary evidence that a transaction is policy-compliant. The pipeline needs to answer two questions for every receipt: is this receipt genuine, and does it belong to this transaction?
+Reap's OCR pipeline provides structured receipt data (line items, total, currency, merchant, attendees). The agent receives this directly; no OCR is performed here. In the demo, receipts are pre-parsed JSON in `mcp_server/data/receipts.json` using the same schema, so switching to live data is a datasource swap.
 
-### Ingestion
+**Matching:** receipts are linked to transactions by `transaction_id`. As a fallback, amount (±5%), merchant name, and timestamp (±24h) are used together. A mismatch on any signal flags the receipt for manual review rather than silently linking it.
 
-In production, Reap already provides OCR-processed receipts via its existing infrastructure. The agent does not need to perform OCR itself; it receives structured receipt data: line items with names and amounts, total, currency, merchant name, and optionally attendees and business purpose.
+**Line-item checks:**
+- Alcohol present + no attendee list → LLM invoked against the NL policy clause.
+- `receipt.attendees` null when policy requires it → `needs_evidence`.
+- Receipt total differs from transaction amount by >10% → flagged.
 
-In this build, receipts are pre-parsed JSON records in `mcp_server/data/receipts.json`. The same data model is used so the switch to live OCR is a datasource swap, not a schema change.
-
-### Matching a receipt to a transaction
-
-A receipt is matched to a transaction on `transaction_id` as the primary key. In production, a secondary fuzzy match is needed because the receipt `transaction_id` may not always be present (e.g. a receipt uploaded by an employee after the fact). The fallback matching strategy:
-
-| Signal                      | Weight                                |
-| --------------------------- | ------------------------------------- |
-| Amount match (within ±5%)  | High                                  |
-| Merchant name similarity    | High                                  |
-| Timestamp proximity (±24h) | Medium                                |
-| Currency match              | Medium                                |
-| Employee ID                 | Low (one employee, many transactions) |
-
-A receipt that matches on amount + merchant + timestamp is considered attached. A receipt where any of these diverge by more than the tolerance is flagged for manual review rather than silently linked.
-
-### Line-item analysis
-
-Once matched, the agent reads line items to apply specific policy rules:
-
-- **Alcohol rule**: if any line item is categorised as `Alcohol` and no attendee list is present, the NL reference "alcohol is reimbursable only when clients are present" applies. The structured rule engine cannot catch this alone; it requires the LLM to interpret the receipt content against the policy clause.
-- **Attendee note**: if the policy requires an attendee list and `receipt.attendees` is null, the `requires_attendee_note` predicate fires and returns `needs_evidence`.
-- **Amount cap**: `receipt.total_amount` is compared against the transaction amount. A significant discrepancy (>10%) triggers a flag even if both are individually within policy.
-
-### Known gap: alcohol line item without a structured rule
-
-The current demo policy does not include a `requires_attendee_note` rule for meal transactions. The eval harness (Phase 14) deliberately includes a receipt with alcohol line items and no attendee note, and correctly catches this as a **false negative** (verdict `pass_through` when `needs_judgment` is expected). Fixing it requires adding a `requires_attendee_note` structured rule scoped to meal MCC codes. This is the clearest example of a policy gap that the eval harness surfaces.
+**Known gap:** the demo policy has no `requires_attendee_note` rule for meals, so a receipt with alcohol and no attendee note returns `pass_through` instead of `needs_judgment`. Adding a structured predicate scoped to meal MCC codes would close this.
 
 ---
 
 ## 10b. Adversarial Users and Policy Gaming
 
-A policy enforcement system that employees know exists creates an incentive to game it. The brief explicitly calls out structuring as an example. This section catalogues the known attack patterns and our mitigations.
+Employees who know a system exists will try to game it. Four known patterns and their status:
 
-### Structuring (splitting spend under caps)
-
-**Pattern:** Three dinners at $149, $148, $147 on consecutive days, each just under a $150 cap, collectively $444 in a week.
-
-**Current behaviour:** Each triggers `needs_evidence` individually (amount > $75, no receipt). With receipts attached, each passes. The aggregate pattern is invisible to a per-transaction engine.
-
-**Mitigation (planned):** A nightly batch job aggregates spend by employee × merchant × category × rolling 7-day window and flags clusters that exceed a configurable threshold even if each transaction passed individually. Out of MVP scope; the eval harness notes this gap explicitly.
-
-### Vendor name typos to evade the blocklist
-
-**Pattern:** "Cmpetitor Corp" (one-character typo of blocked "Competitor Corp") passes exact-match blocklist check.
-
-**Current behaviour:** Rule engine compares `txn.merchant_name.lower()` exactly; no match, rule does not fire. Transaction returns `needs_evidence` on the receipt rule, not `fail`. Confirmed as a `GAP` in the Phase 14 eval (`txn-0015`).
-
-**Mitigation (planned):** Fuzzy matching using Levenshtein distance ≤ 2 on `merchant_name`. Near-matches return `needs_judgment` instead of passing silently. The blocklist is a plain string list; swapping in a similarity function requires no schema change.
-
-### Category misclassification
-
-**Pattern:** Personal electronics submitted under MCC 5812 (restaurants) to avoid a category ban.
-
-**Mitigation:** MCC is set by the card network at authorisation and cannot be changed by the employee. The agent checks MCC directly via the `mcc_ban` predicate; vendor category provides a secondary cross-check.
-
-### Receipt fabrication or alteration
-
-**Pattern:** Fabricated or edited receipt submitted to justify spend that did not occur or was overstated.
-
-**Mitigation:** Receipts should be ingested from Reap's existing OCR pipeline rather than accepted as raw employee uploads. OCR confidence scores flag low-quality or digitally-created images. High-value transactions require finance review of the receipt regardless of automated verdict. This is a platform-level control; the policy agent alone cannot enforce it.
-
-### Summary of mitigations
-
-| Attack                                | Current status                        | Planned fix                           |
-| ------------------------------------- | ------------------------------------- | ------------------------------------- |
-| Structuring under per-transaction cap | Caught individually; pattern missed   | Batch sweep on rolling window         |
-| Vendor name typo evading blocklist    | Missed (GAP in eval)                  | Fuzzy vendor matching (edit distance) |
-| Category misclassification            | Caught via MCC (card network sets it) | Already implemented                   |
-| Receipt fabrication                   | Caught only if OCR pipeline flags it  | Platform-level image verification     |
+| Attack | Current status | Fix |
+| ------ | -------------- | --- |
+| **Structuring** — split spend across days just under a cap ($149, $148, $147) | Each transaction caught individually; aggregate pattern missed | Nightly batch sweep on rolling 7-day window (planned) |
+| **Vendor typo** — "Cmpetitor Corp" evades exact blocklist match | Missed; returns `needs_evidence` instead of `fail` | Fuzzy matching with Levenshtein distance ≤ 2 (planned) |
+| **Category misclassification** — personal electronics submitted as restaurants | Caught: MCC is set by the card network and cannot be changed by the employee | Already implemented |
+| **Receipt fabrication** — edited or fake receipt to justify overspend | Caught only if OCR pipeline flags it | Platform-level: OCR confidence scores + mandatory finance review above a threshold |
 
 ---
 
@@ -381,37 +328,45 @@ Each `.compiled.json` file is a self-contained `CompiledPolicy` blob. The status
 
 ### 11.8 Implemented Tools and Evaluation Paths
 
-**MCP read tools**
+**MCP read tools** (`mcp_server/tools/read_tools.py`)
 
-- `get_active_policy(tenant_id)` in `mcp_server/tools/read_tools.py` returns `policy_store.get_active(tenant_id)` as JSON.
-- The active compiled policy lives under `mcp_server/data/policies/{tenant_id}/{policy_id}.compiled.json`.
-- Current Meru active policy: `meru-inc` version 4, status `active`.
+| Tool | Purpose |
+| ---- | ------- |
+| `get_active_policy(tenant_id)` | Fetch the active compiled policy for a tenant |
+| `get_transaction(transaction_id)` | Fetch a single transaction record |
+| `get_employee(employee_id)` | Fetch employee profile and role |
+| `get_vendor(vendor_id_or_name)` | Fetch vendor record including blocklist status |
+| `get_receipt(transaction_id)` | Fetch the receipt attached to a transaction |
+| `get_employee_recent_transactions(employee_id, days)` | Fetch recent spend history for structuring detection |
+| `check_employee_calendar(employee_id, timestamp)` | Fetch calendar events to verify client meeting context |
+| `convert_currency(amount, from_ccy, to_ccy)` | Convert foreign-currency amounts to USD for rule evaluation |
+| `get_chart_of_accounts(tenant_id)` | Fetch valid account codes for a tenant |
 
-**Non-LLM structured path**
+**MCP write tools** (`mcp_server/tools/write_tools.py`)
 
-Used first for deterministic predicates in `backend/app/services/rule_engine.py`.
+| Tool | Purpose |
+| ---- | ------- |
+| `request_evidence(transaction_id, missing_items)` | Notify employee to submit missing receipts or justification |
+| `flag_for_review(transaction_id, reason)` | Place a transaction in the finance review queue |
+| `mark_compliant(transaction_id, policy_version)` | Record a pass-through decision in the audit log |
+| `notify_manager(transaction_id, message)` | Send escalation notice to the employee's manager |
+| `propose_high_stakes_action(transaction_id, action, rationale)` | Queue a clawback or suspension for human approval; never auto-executes |
 
-Examples: `amount_requires_receipt`, `amount_cap`, `vendor_blocklist`, `vendor_allowlist`, `mcc_ban`, `hotel_star_max`, `per_diem_cap`, `category_pre_approval`, `requires_attendee_note`.
+**MCP meta tools** (`mcp_server/tools/meta_tools.py`)
 
-Returns:
+| Tool | Purpose |
+| ---- | ------- |
+| `abstain(transaction_id, reason)` | Record that the agent could not reach a confident decision |
+| `validate_policy(rules_json)` | Validate a compiled policy JSON before activation |
+| `get_predicate_types()` | Return the list of supported rule predicate types |
 
-```text
-(verdict, rules_fired, missing_evidence)
-```
+**Structured rule evaluation path** (`backend/app/services/rule_engine.py`)
 
-Example: `$120 USD` with no receipt against a `$75 USD` receipt rule returns `needs_evidence`.
+Runs first on every transaction. Predicates: `amount_requires_receipt`, `amount_cap`, `vendor_blocklist`, `vendor_allowlist`, `mcc_ban`, `hotel_star_max`, `per_diem_cap`, `category_pre_approval`, `requires_attendee_note`. Returns `(verdict, rules_fired, missing_evidence)`. If the result is unambiguous (`pass_through` or `fail`), the LLM is never called.
 
-**LLM path**
+**LLM judgment path** (`backend/app/agents/judgment_agent.py`)
 
-Used only after structured checks cannot fully decide the case.
-
-Examples:
-
-- Alcohol reimbursable only when clients are present.
-- "Reasonable" or "good judgment" spend.
-- Client dinner context requiring calendar/receipt interpretation.
-
-The LLM uses `NaturalLanguageReference` clauses plus transaction context. Clear numeric/list rules stay on the non-LLM path.
+Invoked only when structured rules return `needs_judgment`. The agent receives the transaction context and the relevant `NaturalLanguageReference` clauses, then calls write tools to take action. Handles cases like alcohol reimbursement with client presence, "reasonable" spend interpretation, and calendar-backed client dinner verification.
 
 ---
 
@@ -486,7 +441,7 @@ Tenant: **Meru Inc** (`meru-inc`). All files are JSON and served by the MCP serv
 
 ### Vendors — 16 records (2 blocklisted)
 
-14 allowed vendors across Hotels, Transport, Travel, Software, and Restaurants. Blocklisted: **Competitor Corp** and **RivalCo**. Hotel vendors carry a `star_rating` field used by the hotel star rule. **Cmpetitor Corp** (`vnd-016`) is included as a Phase 14 adversarial case: a one-character typo of the blocked vendor, not on the blocklist and not caught by exact matching.
+14 allowed vendors across Hotels, Transport, Travel, Software, and Restaurants. Blocklisted: **Competitor Corp** and **RivalCo**. Hotel vendors carry a `star_rating` field used by the hotel star rule. **Cmpetitor Corp** (`vnd-016`) is included as an adversarial case: a one-character typo of the blocked vendor, not on the blocklist and not caught by exact matching.
 
 ### Transactions — 16 records
 
@@ -502,12 +457,12 @@ Tenant: **Meru Inc** (`meru-inc`). All files are JSON and served by the MCP serv
 | txn-008 | emp-003 | $320 USD  | **Ambiguous**: solo overspend or compliant client dinner for 3? |
 | txn-009 | emp-004 | $450 USD  | **Fail**: 5-star hotel, no receipt, needs evidence |
 | txn-010 | emp-005 | $1200 USD | **Fail**: SaaS above $500/month, no pre-approval on record |
-| txn-011 | emp-001 | $149 USD  | **Phase 14**: structuring day 1, no receipt |
-| txn-012 | emp-001 | $148 USD  | **Phase 14**: structuring day 2, no receipt |
-| txn-013 | emp-001 | $147 USD  | **Phase 14**: structuring day 3, no receipt |
-| txn-014 | emp-003 | $95 USD   | **Phase 14**: receipt with alcohol line items, no attendee note (known gap) |
-| txn-015 | emp-002 | $500 USD  | **Phase 14**: typo vendor "Cmpetitor Corp", not caught by blocklist |
-| txn-016 | emp-005 | €70 EUR   | **Phase 14**: EUR transaction, 70 EUR ≈ USD 76, crosses $75 receipt threshold |
+| txn-011 | emp-001 | $149 USD  | Structuring day 1, no receipt |
+| txn-012 | emp-001 | $148 USD  | Structuring day 2, no receipt |
+| txn-013 | emp-001 | $147 USD  | Structuring day 3, no receipt |
+| txn-014 | emp-003 | $95 USD   | Receipt with alcohol line items, no attendee note (known gap) |
+| txn-015 | emp-002 | $500 USD  | Typo vendor "Cmpetitor Corp", not caught by blocklist |
+| txn-016 | emp-005 | €70 EUR   | EUR transaction, 70 EUR ≈ USD 76, crosses $75 receipt threshold |
 
 ### Receipts — 4 records
 
